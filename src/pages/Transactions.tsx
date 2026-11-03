@@ -14,6 +14,7 @@ export function Transactions() {
   const [walletId, setWalletId] = useState(0);
   const [category, setCategory] = useState<CategoryCode | ''>('');
   const [text, setText] = useState('');
+  const [view, setView] = useState<'list' | 'purpose'>('list');
 
   const wallets = useQuery((db) => repo.listWallets(db));
   const txs = useQuery((db) => {
@@ -34,7 +35,7 @@ export function Transactions() {
   return (
     <div className="page">
       <PageHead title="取引一覧">
-        <a className="btn primary" href="#/entry">＋ 入力</a>
+        <a className="btn primary" href="#/entry">＋ 入力・照合</a>
       </PageHead>
 
       <section className="panel filters">
@@ -54,6 +55,8 @@ export function Transactions() {
         <input type="search" placeholder="用途・メモで検索" value={text} onChange={(e) => setText(e.target.value)} />
       </section>
 
+      <Segmented small value={view} onChange={setView} options={[{ value: 'list', label: '明細' }, { value: 'purpose', label: '用途別集計' }]} />
+
       <p className="totals">
         <span>{txs.length} 件</span>
         <span>支出 <strong>{yen(spent)}</strong></span>
@@ -62,6 +65,8 @@ export function Transactions() {
 
       {txs.length === 0 ? (
         <Empty>該当する取引はありません</Empty>
+      ) : view === 'purpose' ? (
+        <PurposeSummary txs={txs} />
       ) : (
         [...groups].map(([date, list]) => (
           <section key={date} className="panel day-group">
@@ -88,5 +93,40 @@ export function Transactions() {
         ))
       )}
     </div>
+  );
+}
+
+/** 用途別の回数・合計 (Excel の「入力リスト / Count / TTL Price」) */
+function PurposeSummary({ txs }: { txs: Transaction[] }) {
+  const map = new Map<string, { name: string; cat: CategoryCode; count: number; total: number }>();
+  for (const t of txs) {
+    const name = t.purpose_name ?? '(用途なし)';
+    const k = `${t.category_code}:${name}`;
+    const e = map.get(k) ?? { name, cat: t.category_code, count: 0, total: 0 };
+    e.count += 1;
+    e.total += t.amount;
+    map.set(k, e);
+  }
+  const rows = [...map.values()].sort((a, b) => b.total - a.total);
+  const max = Math.max(...rows.map((r) => r.total), 1);
+  return (
+    <section className="panel">
+      <div className="table-wrap">
+        <table className="table purpose-sum">
+          <thead><tr><th>用途</th><th>区分</th><th className="r">回数</th><th className="r">合計</th><th className="bar-col" /></tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={`${r.cat}:${r.name}`}>
+                <td>{r.name}</td>
+                <td className="muted">{CATEGORY_LABEL[r.cat]}</td>
+                <td className="num">{r.count}</td>
+                <td className={`num ${r.cat === 'income' ? 'plus' : ''}`}>{yen(r.total)}</td>
+                <td className="bar-col"><span style={{ width: `${(r.total / max) * 100}%`, background: CATEGORY_COLOR[r.cat] }} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

@@ -15,8 +15,8 @@ const base = (start: string, o: Partial<repo.PeriodInput> = {}): repo.PeriodInpu
 async function setup() {
   const db = await openDb(null);
   const w = Object.fromEntries(repo.listWallets(db).map((x) => [x.name, x.id]));
-  repo.saveFixedCost(db, { name: '家賃', withdraw_day: 27, cycle_months: 1, buffer: 0, default_amount: 60000, active: 1 });
-  repo.saveFixedCost(db, { name: '携帯', withdraw_day: 5, cycle_months: 1, buffer: 0, default_amount: 7000, active: 1 });
+  repo.saveFixedCost(db, { name: '家賃', withdraw_day: 27, cycle_months: 1, buffer: 0, default_amount: 60000, active: 1, mode: 'fixed' });
+  repo.saveFixedCost(db, { name: '携帯', withdraw_day: 5, cycle_months: 1, buffer: 0, default_amount: 7000, active: 1, mode: 'fixed' });
   repo.startPeriod(db, '2026-10', base('2026-10-23'));
   return { db, w };
 }
@@ -123,5 +123,57 @@ describe('import batches', () => {
     expect(m.get('fixed:total')).toBe(67000);
     expect(m.get('income:salary')).toBe(250000);
     expect(m.get('move:saving')).toBe(10000);
+  });
+});
+
+describe('fixed costs: budget uses planned, bank uses actual', () => {
+  it('separates planned (budget) and actual (bank)', async () => {
+    const { db, w } = await setup();
+    const rent = repo.listPeriodFixedCosts(db, '2026-10').find((f) => f.name === '家賃')!.fixed_cost_id;
+    repo.setOpening(db, '2026-10', w['普通口座'], 0);
+    repo.setPlanned(db, '2026-10', rent, 61000);
+    repo.setActualFixed(db, '2026-10', rent, 59000);
+    repo.setFixedPaid(db, '2026-10', rent, true);
+    const d = loadPeriod(db, '2026-10');
+    expect(d.fixedTotal).toBe(61000 + 7000); // 予算額
+    expect(d.balances.find((b) => b.wallet.name === '普通口座')!.fixedPaid).toBe(59000); // 引落額
+    expect(periodItems(d).get('fixed:家賃')).toBe(59000); // 実績 = 引落額
+  });
+});
+
+describe('migration v2 → v3 keeps entered fixed amounts as manual', () => {
+  it('copies amount into planned/actual', async () => {
+    const SQL = await initSqlJs();
+    const v2 = new SQL.Database();
+    v2.exec(MIGRATIONS[0]); v2.exec(MIGRATIONS[1]);
+    v2.run('PRAGMA user_version = 2');
+    v2.run("INSERT INTO fixed_costs (name, default_amount, buffer) VALUES ('電気', 9000, 1)");
+    v2.run("INSERT INTO periods (ym, start_date) VALUES ('2026-10', '2026-10-23')");
+    v2.run("INSERT INTO period_fixed_costs (ym, fixed_cost_id, amount) VALUES ('2026-10', 1, 8800)");
+    const db = await openDb(v2.export());
+    expect(repo.listPeriodFixedCosts(db, '2026-10')[0]).toMatchObject({ planned_input: 8800, actual_input: 8800, mode: 'average' });
+  });
+});
+
+import { buildLedger } from '../src/lib/ledger';
+describe('ledger (通帳形式)', () => {
+  it('running balance ends at the computed current balance for every wallet', async () => {
+    const { db, w } = await setup();
+    repo.setOpening(db, '2026-10', w['普通口座'], 20000);
+    repo.setOpening(db, '2026-10', w['現金'], 3000);
+    repo.setFixedPaid(db, '2026-10', repo.listPeriodFixedCosts(db, '2026-10')[0].fixed_cost_id, true);
+    repo.saveTransfer(db, { date: '2026-10-24', from_wallet_id: w['普通口座'], to_wallet_id: w['現金'], amount: 10000, fee: 110 });
+    repo.saveTransaction(db, { date: '2026-10-25', wallet_id: w['デビット'], category_code: 'food', purpose_id: null, amount: 2000, memo: null });
+    repo.saveTransaction(db, { date: '2026-10-26', wallet_id: w['現金'], category_code: 'food', purpose_id: null, amount: 1500, memo: null });
+    repo.saveTransaction(db, { date: '2026-10-26', wallet_id: w['普通口座'], category_code: 'income', purpose_id: null, amount: 3000, memo: null });
+    repo.savePoolEntry(db, { pool_id: repo.listPools(db)[0].id, date: '2026-10-27', kind: 'use', amount: 4000 });
+    const d = loadPeriod(db, '2026-10');
+    for (const b of d.balances.filter((x) => !x.merged)) {
+      const l = buildLedger(d, b.wallet.id);
+      expect(l[l.length - 1].balance).toBe(b.current);
+    }
+    // デビットを選ぶと口座の明細
+    expect(buildLedger(d, w['デビット']).some((r) => r.sub?.includes('デビット'))).toBe(true);
+    expect(buildLedger(d, w['現金']).map((r) => r.balance)).toEqual([3000, 13000, 11500]);
   });
 });

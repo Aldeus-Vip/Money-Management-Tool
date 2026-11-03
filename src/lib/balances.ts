@@ -3,7 +3,7 @@ import type { Period, PeriodBalance, PeriodFixedCost, Transaction, Transfer, Wal
 /**
  * ウォレット残高の計算 (Excel「銀行口座」「現金」「PayPay」「Suica」シート)。
  *
- * 普通口座 (現在) = 期首 + 給料 + 賞与(ON) − 引落済の固定費 − プールへの移動 + プールからの使用
+ * 普通口座 (現在) = 期首 + 給料 + 賞与(ON) − 引落済の固定費 (引落額) − プールへの移動 + プールからの使用
  *                  ± 移動 − 支出 (口座・デビット) + 受取金 (振込)
  * 普通口座 (見込み) = 現在 − 未引落の固定費
  * その他          = 期首 ± 移動 − 支出 + 受取金
@@ -57,8 +57,8 @@ export function computeBalances(i: BalanceInput): WalletBalance[] {
     const transferOut = i.transfers.filter((t) => t.from_wallet_id === w.id).reduce((s, t) => s + t.amount, 0);
     const p = i.period;
     const income = isBank && p ? p.salary + (p.bonus_on ? p.bonus : 0) : 0;
-    const fixedPaid = isBank ? i.fixed.filter((f) => f.paid).reduce((s, f) => s + f.amount, 0) : 0;
-    const fixedUnpaid = isBank ? i.fixed.filter((f) => !f.paid).reduce((s, f) => s + f.amount, 0) : 0;
+    const fixedPaid = isBank ? i.fixed.filter((f) => f.paid).reduce((s, f) => s + f.actual, 0) : 0;
+    const fixedUnpaid = isBank ? i.fixed.filter((f) => !f.paid).reduce((s, f) => s + f.actual, 0) : 0;
     const poolMove = isBank && p ? p.saving_move + p.fun_move : 0;
     const poolUse = isBank ? i.poolUse : 0;
     const b = i.balances.get(w.id);

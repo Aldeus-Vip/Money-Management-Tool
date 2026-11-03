@@ -99,10 +99,61 @@ export function withdrawDate(range: PeriodRange, day: number | null): ISODate | 
   return null;
 }
 
-/** "1009+1133-200" のような簡易式を評価 (Excel で =1009+1133 と入力していた運用の再現) */
+/**
+ * 金額の簡易式を評価: + − × ÷ と括弧 (例: "1009+1133", "400*5", "(1200+800)×2")。
+ * Excel で =1009+1133 や =400*日数 と入力していた運用の再現。結果は円単位に丸める。
+ */
 export function evalAmount(input: string): number | null {
-  const s = input.replace(/[,\s¥円]/g, '').replace(/[＋]/g, '+').replace(/[－ー−]/g, '-')
-    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
-  if (!/^[+-]?\d+([+-]\d+)*$/.test(s)) return null;
-  return s.match(/[+-]?\d+/g)!.reduce((a, b) => a + Number(b), 0);
+  const s = input
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/[,，\s¥￥円=＝]/g, '')
+    .replace(/[＋]/g, '+')
+    .replace(/[－ー−‐]/g, '-')
+    .replace(/[×xX＊*]/g, '*')
+    .replace(/[÷／/]/g, '/')
+    .replace(/[（]/g, '(')
+    .replace(/[）]/g, ')')
+    .replace(/[．]/g, '.');
+  if (!s || !/^[\d.+\-*/()]+$/.test(s)) return null;
+  let i = 0;
+  const peek = () => s[i];
+  // 再帰下降: expr = term (('+'|'-') term)* / term = factor (('*'|'/') factor)* / factor = ('-')? (number | '(' expr ')')
+  function expr(): number {
+    let v = term();
+    while (peek() === '+' || peek() === '-') v = s[i++] === '+' ? v + term() : v - term();
+    return v;
+  }
+  function term(): number {
+    let v = factor();
+    while (peek() === '*' || peek() === '/') {
+      const op = s[i++];
+      const r = factor();
+      v = op === '*' ? v * r : v / r;
+    }
+    return v;
+  }
+  function factor(): number {
+    if (peek() === '-') { i++; return -factor(); }
+    if (peek() === '+') { i++; return factor(); }
+    if (peek() === '(') {
+      i++;
+      const v = expr();
+      if (s[i++] !== ')') throw new Error('paren');
+      return v;
+    }
+    const m = /^\d+(\.\d+)?/.exec(s.slice(i));
+    if (!m) throw new Error('num');
+    i += m[0].length;
+    return Number(m[0]);
+  }
+  try {
+    const v = expr();
+    if (i !== s.length || !Number.isFinite(v)) return null;
+    return Math.round(v);
+  } catch {
+    return null;
+  }
 }
+
+/** 式を含む入力か (結果のプレビュー表示用) */
+export const isExpression = (input: string) => /\d\s*[+\-*/×÷＋－＊／xX]\s*[\d(（]|[()（）]/.test(input.replace(/^[-−]/, ''));

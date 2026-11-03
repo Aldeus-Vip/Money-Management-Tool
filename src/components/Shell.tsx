@@ -8,7 +8,7 @@ import { periodRange } from '../db/repo';
 
 export const NAV: { key: Route; label: string; mobile: boolean }[] = [
   { key: 'dashboard', label: 'ダッシュボード', mobile: true },
-  { key: 'entry', label: '取引入力', mobile: true },
+  { key: 'entry', label: '入力・照合', mobile: true },
   { key: 'list', label: '取引一覧', mobile: true },
   { key: 'wallets', label: '口座・残高', mobile: false },
   { key: 'fixed', label: '固定費', mobile: false },
@@ -85,7 +85,7 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
         {NAV.filter((n) => n.mobile).map((n) => (
           <a key={n.key} href={`#/${n.key}`} className={route === n.key ? 'active' : ''}>
             <span className="ico"><Icon name={n.key} /></span>
-            {n.key === 'dashboard' ? 'ホーム' : n.label.replace('取引', '')}
+            {n.key === 'dashboard' ? 'ホーム' : n.key === 'entry' ? '入力' : n.label.replace('取引', '')}
           </a>
         ))}
       </nav>

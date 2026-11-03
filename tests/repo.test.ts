@@ -28,16 +28,30 @@ describe('repo', () => {
     expect(repo.periodRange(db, '2026-10').end).toBe('2026-11-19');
   });
 
-  it('estimates fixed costs from history with buffer (bimonthly = per-bill average)', async () => {
+  it('fixed costs: fixed amount vs past average × buffer, manual override and reset to master', async () => {
     const db = await openDb(null);
-    const water = repo.saveFixedCost(db, { name: '水道', withdraw_day: 28, cycle_months: 2, buffer: 1, default_amount: 3000, active: 1 });
+    const rent = repo.saveFixedCost(db, { name: '家賃', withdraw_day: 27, cycle_months: 1, buffer: 0, default_amount: 50000, active: 1, mode: 'fixed' });
+    const water = repo.saveFixedCost(db, { name: '水道', withdraw_day: 28, cycle_months: 2, buffer: 1, default_amount: 3000, active: 1, mode: 'average' });
     repo.startPeriod(db, '2026-08', base('2026-08-25'));
-    expect(repo.listPeriodFixedCosts(db, '2026-08')[0].amount).toBe(3300); // 既定額 × 1.1
-    repo.setPeriodFixedAmount(db, '2026-08', water, 2900);
+    const row = (ym: string, id: number) => repo.listPeriodFixedCosts(db, ym).find((f) => f.fixed_cost_id === id)!;
+    // 実績が無い → マスタの金額 (× バッファ)
+    expect(row('2026-08', water)).toMatchObject({ planned_input: null, actual_input: null, auto: 3300, planned: 3300, actual: 3300 });
+    expect(row('2026-08', rent).auto).toBe(50000);
+    // 引落額を手入力 → 過去平均に使われる / 予算額は自動のまま
+    repo.setActualFixed(db, '2026-08', water, 2900);
+    expect(row('2026-08', water)).toMatchObject({ actual_input: 2900, actual: 2900, planned: 3300 });
     repo.startPeriod(db, '2026-09', base('2026-09-25'));
-    repo.setPeriodFixedAmount(db, '2026-09', water, 0); // 請求なしの月
+    repo.setActualFixed(db, '2026-09', water, 0); // 請求なしの月
     repo.startPeriod(db, '2026-10', base('2026-10-23'));
-    expect(repo.listPeriodFixedCosts(db, '2026-10')[0].amount).toBe(Math.round(2900 * 1.1));
+    expect(row('2026-10', water).auto).toBe(Math.round(2900 * 1.1));
+    // 予算額を手入力 → マスタに戻す
+    repo.setPlanned(db, '2026-10', rent, 52000);
+    expect(row('2026-10', rent)).toMatchObject({ planned: 52000, actual: 50000 });
+    repo.setPlanned(db, '2026-10', rent, null);
+    expect(row('2026-10', rent).planned).toBe(50000);
+    // マスタの金額を変えると、自動の行はすべて追従する
+    repo.saveFixedCost(db, { id: rent, name: '家賃', withdraw_day: 27, cycle_months: 1, buffer: 0, default_amount: 55000, active: 1, mode: 'fixed' });
+    expect(row('2026-10', rent).planned).toBe(55000);
   });
 
   it('saves, filters and deletes transactions; purposes sorted by usage', async () => {

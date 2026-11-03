@@ -40,11 +40,11 @@ export function Dashboard() {
     if (s.freeFrame < 0) alerts.push({ tone: 'danger', text: `自由枠がマイナスです (${yen(s.freeFrame)})` });
     if (s.freeRemain < 0) alerts.push({ tone: 'danger', text: `自由枠の残りがマイナスです (${yen(s.freeRemain)})` });
     for (const b of budgets) {
-      if (b.limit <= 0 && b.used <= 0) continue;
-      const r = b.limit > 0 ? b.used / b.limit : Infinity;
-      if (r >= 1) alerts.push({ tone: 'danger', text: `${b.label}が枠を ${yen(b.used - b.limit)} 超えています` });
-      else if (r >= 0.85) alerts.push({ tone: 'warn', text: `${b.label}の残りが ${yen(b.limit - b.used)} です` });
-      else if (b.paced && isCurrent && r > pace) alerts.push({ tone: 'warn', text: `${b.label}が理想ペースを ${yen(b.used - b.limit * pace)} 上回っています` });
+      const remain = b.limit - b.used;
+      // エラーは残りがマイナス (0 未満) のときだけ
+      if (remain < 0) alerts.push({ tone: 'danger', text: `${b.label}が枠を ${yen(-remain)} 超えています` });
+      else if (remain > 0 && b.used / b.limit >= 0.85) alerts.push({ tone: 'warn', text: `${b.label}の残りが ${yen(remain)} です` });
+      else if (remain > 0 && b.paced && isCurrent && b.used / b.limit > pace) alerts.push({ tone: 'warn', text: `${b.label}が理想ペースを ${yen(b.used - b.limit * pace)} 上回っています` });
     }
   }
 
@@ -138,7 +138,7 @@ export function Dashboard() {
                 <input type="checkbox" checked={!!f.paid} aria-label={`${f.name} 引落済`} onChange={(e) => mutate((db) => repo.setFixedPaid(db, ym, f.fixed_cost_id, e.target.checked))} />
                 <time>{f.date ? fmtMD(f.date) : '—'}</time>
                 <span>{f.name}</span>
-                <strong>{yen(f.amount)}</strong>
+                <strong>{yen(f.actual)}</strong>
               </li>
             ))}
           </ol>

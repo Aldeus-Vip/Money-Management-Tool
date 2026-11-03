@@ -16,11 +16,21 @@ export interface Period {
   ym: YM; start_date: ISODate; salary: number; bonus: number; bonus_on: number; food_budget: number;
   charge_limit: number; fun_limit: number; saving_move: number; fun_move: number; extra_add: number; memo: string | null;
 }
+/** mode: fixed = マスタの金額 (固定額) / average = 過去の実績平均 × バッファ */
+export type FixedMode = 'fixed' | 'average';
 export interface FixedCost {
   id: number; name: string; withdraw_day: number | null; cycle_months: number; buffer: number;
-  default_amount: number; sort: number; active: number;
+  default_amount: number; sort: number; active: number; mode: FixedMode;
 }
-export interface PeriodFixedCost { ym: YM; fixed_cost_id: number; name: string; withdraw_day: number | null; amount: number; paid: number }
+/**
+ * 期間ごとの固定費。planned (予算額) / actual (引落額) は
+ * *_input が NULL ならマスタから自動 (auto)、数値なら手入力。
+ */
+export interface PeriodFixedCost {
+  ym: YM; fixed_cost_id: number; name: string; withdraw_day: number | null; mode: FixedMode; buffer: number;
+  planned_input: number | null; actual_input: number | null; auto: number;
+  planned: number; actual: number; paid: number;
+}
 export interface Transaction {
   id: number; date: ISODate; wallet_id: number; wallet_name: string; category_code: CategoryCode; category_name: string;
   purpose_id: number | null; purpose_name: string | null; is_charge: number; amount: number; memo: string | null;
@@ -32,6 +42,8 @@ export type TransactionInput = Pick<Transaction, 'date' | 'wallet_id' | 'categor
 export interface Settings {
   paydayDay: number; paydayHolidays: boolean; bufferRate: number; avgRate: number; extraMin: number;
   pinHash: string | null; pinSalt: string | null;
+  /** 弁当の単価 (弁当代の計算用) */
+  bentoPrice: number;
   /** 期首残高の合計を自由枠に加算するか (Excel 方式)。繰越ルール確定までは既定 OFF */
   carryOpening: boolean;
 }
@@ -47,6 +59,7 @@ export function getSettings(db: Database): Settings {
     pinHash: m.get('pin_hash') ?? null,
     pinSalt: m.get('pin_salt') ?? null,
     carryOpening: m.get('carry_opening') === '1',
+    bentoPrice: Number(m.get('bento_price') ?? 400),
   };
 }
 
@@ -105,15 +118,16 @@ export function findOrCreatePurpose(db: Database, name: string, category: Catego
 export const listFixedCosts = (db: Database, activeOnly = false) =>
   all<FixedCost>(db, `SELECT * FROM fixed_costs ${activeOnly ? 'WHERE active = 1' : ''} ORDER BY COALESCE(withdraw_day, 99), sort, id`);
 
-export function saveFixedCost(db: Database, f: Omit<FixedCost, 'id' | 'sort'> & { id?: number }): number {
+export function saveFixedCost(db: Database, f: Omit<FixedCost, 'id' | 'sort' | 'mode'> & { id?: number; mode?: FixedMode }): number {
+  const mode = f.mode ?? 'fixed';
   if (f.id) {
-    run(db, 'UPDATE fixed_costs SET name=?, withdraw_day=?, cycle_months=?, buffer=?, default_amount=?, active=? WHERE id=?', [
-      f.name, f.withdraw_day, f.cycle_months, f.buffer, f.default_amount, f.active, f.id,
+    run(db, 'UPDATE fixed_costs SET name=?, withdraw_day=?, cycle_months=?, buffer=?, default_amount=?, active=?, mode=? WHERE id=?', [
+      f.name, f.withdraw_day, f.cycle_months, f.buffer, f.default_amount, f.active, mode, f.id,
     ]);
     return f.id;
   }
-  run(db, 'INSERT INTO fixed_costs (name, withdraw_day, cycle_months, buffer, default_amount, active, sort) VALUES (?,?,?,?,?,?, (SELECT COALESCE(MAX(sort),0)+1 FROM fixed_costs))', [
-    f.name, f.withdraw_day, f.cycle_months, f.buffer, f.default_amount, f.active,
+  run(db, 'INSERT INTO fixed_costs (name, withdraw_day, cycle_months, buffer, default_amount, active, mode, sort) VALUES (?,?,?,?,?,?,?, (SELECT COALESCE(MAX(sort),0)+1 FROM fixed_costs))', [
+    f.name, f.withdraw_day, f.cycle_months, f.buffer, f.default_amount, f.active, mode,
   ]);
   return lastId(db);
 }
@@ -158,9 +172,8 @@ export function savePeriod(db: Database, key: YM, p: PeriodInput): void {
 export function startPeriod(db: Database, key: YM, p: PeriodInput): void {
   tx(db, () => {
     savePeriod(db, key, p);
-    const rate = getSettings(db).bufferRate;
     for (const f of listFixedCosts(db, true)) {
-      run(db, 'INSERT OR IGNORE INTO period_fixed_costs (ym, fixed_cost_id, amount) VALUES (?,?,?)', [key, f.id, estimateFixed(db, f, key, rate)]);
+      run(db, 'INSERT OR IGNORE INTO period_fixed_costs (ym, fixed_cost_id, amount) VALUES (?,?,0)', [key, f.id]);
     }
   });
 }
@@ -173,35 +186,53 @@ export function deletePeriod(db: Database, key: YM): void {
 }
 
 // ===== 期間の固定費 =====
-export const listPeriodFixedCosts = (db: Database, key: YM) =>
-  all<PeriodFixedCost>(
+export function listPeriodFixedCosts(db: Database, key: YM): PeriodFixedCost[] {
+  const rate = getSettings(db).bufferRate;
+  const rows = all<FixedCost & { ym: YM; fixed_cost_id: number; planned_input: number | null; actual_input: number | null; paid: number }>(
     db,
-    `SELECT pf.ym, pf.fixed_cost_id, f.name, f.withdraw_day, pf.amount, pf.paid
+    `SELECT f.*, pf.ym, pf.fixed_cost_id, pf.planned AS planned_input, pf.actual AS actual_input, pf.paid
        FROM period_fixed_costs pf JOIN fixed_costs f ON f.id = pf.fixed_cost_id
       WHERE pf.ym = ? ORDER BY COALESCE(f.withdraw_day, 99), f.sort, f.id`,
     [key],
   );
+  return rows.map((r) => {
+    const auto = estimateFixed(db, r, key, rate);
+    return {
+      ym: r.ym, fixed_cost_id: r.fixed_cost_id, name: r.name, withdraw_day: r.withdraw_day, mode: r.mode, buffer: r.buffer,
+      planned_input: r.planned_input, actual_input: r.actual_input, auto,
+      planned: r.planned_input ?? auto, actual: r.actual_input ?? auto, paid: r.paid,
+    };
+  });
+}
 
-export const setPeriodFixedAmount = (db: Database, key: YM, fixedCostId: number, amount: number) =>
-  run(db, 'UPDATE period_fixed_costs SET amount = ? WHERE ym = ? AND fixed_cost_id = ?', [amount, key, fixedCostId]);
+/** 予算額を設定 (null = マスタから自動に戻す) */
+export const setPlanned = (db: Database, key: YM, fixedCostId: number, v: number | null) =>
+  run(db, 'UPDATE period_fixed_costs SET planned = ? WHERE ym = ? AND fixed_cost_id = ?', [v, key, fixedCostId]);
+
+/** 引落額を設定 (null = マスタから自動に戻す) */
+export const setActualFixed = (db: Database, key: YM, fixedCostId: number, v: number | null) =>
+  run(db, 'UPDATE period_fixed_costs SET actual = ? WHERE ym = ? AND fixed_cost_id = ?', [v, key, fixedCostId]);
 
 export function addFixedToPeriod(db: Database, key: YM, f: FixedCost): void {
-  run(db, 'INSERT OR IGNORE INTO period_fixed_costs (ym, fixed_cost_id, amount) VALUES (?,?,?)', [key, f.id, estimateFixed(db, f, key, getSettings(db).bufferRate)]);
+  run(db, 'INSERT OR IGNORE INTO period_fixed_costs (ym, fixed_cost_id, amount) VALUES (?,?,0)', [key, f.id]);
 }
 
 export const removeFixedFromPeriod = (db: Database, key: YM, fixedCostId: number) =>
   run(db, 'DELETE FROM period_fixed_costs WHERE ym = ? AND fixed_cost_id = ?', [key, fixedCostId]);
 
 /**
- * 固定費の推定額 = 過去12期間の実額 (0 を除く) の平均 × (1 + バッファ率)。
- * 請求のある期間だけ記録されるため、隔月請求 (水道代など) も「1回あたりの額」になる
- * = Excel の「月平均 × 2」と同じ結果。履歴が無ければマスタの既定額。
+ * マスタからの自動額 (Excel「固定費List」の L 列)。
+ * - 固定額: マスタの金額
+ * - 過去平均: 直近12期間の「手入力した引落額」(0 を除く) の平均 × (1 + バッファ率)。
+ *   請求のある期間だけ金額が入るので、隔月請求 (水道代) も 1 回あたりの額 = Excel の「月平均 × 2」と同じ。
+ *   実績が無ければマスタの金額。
  */
-export function estimateFixed(db: Database, f: FixedCost, beforeYm: YM, bufferRate: number): number {
+export function estimateFixed(db: Database, f: Pick<FixedCost, 'id' | 'mode' | 'buffer' | 'default_amount'>, beforeYm: YM, bufferRate: number): number {
+  if (f.mode !== 'average') return f.default_amount;
   const r = get<{ avg: number | null }>(
     db,
-    `SELECT AVG(amount) AS avg FROM (
-       SELECT amount FROM period_fixed_costs WHERE fixed_cost_id = ? AND ym < ? AND amount > 0 ORDER BY ym DESC LIMIT 12)`,
+    `SELECT AVG(actual) AS avg FROM (
+       SELECT actual FROM period_fixed_costs WHERE fixed_cost_id = ? AND ym < ? AND actual IS NOT NULL AND actual > 0 ORDER BY ym DESC LIMIT 12)`,
     [f.id, beforeYm],
   );
   const base = r?.avg ?? f.default_amount;

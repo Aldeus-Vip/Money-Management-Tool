@@ -23,6 +23,7 @@ npm run build   # ビルド
 - `docs/04_phase1.md` Phase 1 の実装内容
 - `docs/05_phase2.md` Phase 2 の実装内容
 - `docs/06_excel-import-plan.md` Excel 取り込みの準備
+- `docs/07_feedback-v1.md` フィードバック対応 (固定費・入力照合)
 
 ## アイコン
 

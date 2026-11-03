@@ -23,8 +23,8 @@ export function periodItems(d: PeriodData): Map<string, number> {
   m.set('income:salary', p.salary);
   m.set('income:bonus', p.bonus_on ? p.bonus : 0);
   m.set('income:received', s.received);
-  for (const f of d.fixed) m.set(`fixed:${f.name}`, (m.get(`fixed:${f.name}`) ?? 0) + f.amount);
-  m.set('fixed:total', d.fixedTotal);
+  for (const f of d.fixed) m.set(`fixed:${f.name}`, (m.get(`fixed:${f.name}`) ?? 0) + f.actual);
+  m.set('fixed:total', d.fixed.reduce((a, f) => a + f.actual, 0));
   for (const c of ['food', 'transport', 'fun', 'extra', 'other'] as const) m.set(`cat:${c}`, s.byCategory[c]);
   m.set('fee', d.txs.filter((t) => t.purpose_name === '手数料').reduce((a, t) => a + t.amount, 0));
   m.set('move:saving', p.saving_move);

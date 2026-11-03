@@ -88,3 +88,22 @@ describe('pin', () => {
     expect(isValidPin('12345678')).toBe(true);
   });
 });
+
+describe('evalAmount (掛け算・括弧)', () => {
+  it('supports × ÷ and parentheses', async () => {
+    const { evalAmount, isExpression } = await import('../src/lib/budget');
+    expect(evalAmount('400*5')).toBe(2000);
+    expect(evalAmount('400×5')).toBe(2000);
+    expect(evalAmount('(1200+800)×2')).toBe(4000);
+    expect(evalAmount('1009+1133+1334')).toBe(3476);
+    expect(evalAmount('3000÷3')).toBe(1000);
+    expect(evalAmount('1000/3')).toBe(333);
+    expect(evalAmount('-500')).toBe(-500);
+    expect(evalAmount('＝１２０＋８０')).toBe(200);
+    expect(evalAmount('(1+2')).toBeNull();
+    expect(evalAmount('1++')).toBeNull();
+    expect(isExpression('400*5')).toBe(true);
+    expect(isExpression('-500')).toBe(false);
+    expect(isExpression('2,967')).toBe(false);
+  });
+});

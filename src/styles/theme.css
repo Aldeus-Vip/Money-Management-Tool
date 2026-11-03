@@ -478,3 +478,120 @@ strong.warn { color: var(--c-amber); }
   .table.balances td.w-title { grid-column: 1 / -1; font-size: 15px; color: var(--c-cyan); }
   .table.balances .inline-amount { max-width: none; }
 }
+
+/* 表の中の金額入力: ¥ と数字が重ならないよう左余白を確保 (.table td input の padding より優先) */
+.amount-input > input, .table td .amount-input > input { padding-left: 28px; }
+.table td .amount-input > span { left: 10px; font-size: 13px; }
+
+/* ===== 自動 / 手入力 の見分け (Excel の条件付き書式の置き換え) ===== */
+.src-amount { display: flex; align-items: center; gap: 6px; min-width: 200px; }
+.src-amount .amount-input { flex: 1; min-width: 110px; }
+.src-amount .amount-input input { min-height: 34px; font-size: 14px; }
+.src-amount.auto .amount-input input { border-style: dashed; border-color: rgba(25, 227, 232, 0.45); background: rgba(25, 227, 232, 0.06); color: var(--c-silver); }
+.src-amount.manual .amount-input input { border-color: rgba(245, 184, 61, 0.65); background: rgba(245, 184, 61, 0.08); color: #ffe2a6; }
+.src-badge { flex: none; font-size: 10.5px; padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
+.src-amount.auto .src-badge { color: var(--c-cyan); border: 1px solid rgba(25, 227, 232, 0.5); }
+.src-amount.manual .src-badge { color: var(--c-amber); border: 1px solid rgba(245, 184, 61, 0.6); }
+.src-reset { width: 30px; height: 30px; flex: none; border-radius: 8px; border: 1px solid rgba(245, 184, 61, 0.5); background: transparent; color: var(--c-amber); font-size: 15px; }
+.src-reset:hover { background: rgba(245, 184, 61, 0.15); }
+.src-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin: 0 0 12px; font-size: 12px; color: var(--c-silver-dim); }
+.src-chip { font-size: 10.5px; padding: 1px 8px; border-radius: 999px; margin-left: 6px; }
+.src-chip.auto { color: var(--c-cyan); border: 1px dashed rgba(25, 227, 232, 0.6); background: rgba(25, 227, 232, 0.06); }
+.src-chip.manual { color: var(--c-amber); border: 1px solid rgba(245, 184, 61, 0.6); background: rgba(245, 184, 61, 0.08); }
+.fixed-list li { grid-template-columns: 40px minmax(0, 1fr) minmax(200px, 250px) 28px; }
+.fixed-list .name small, .fixed-table .name small { display: block; font-size: 11px; color: var(--c-silver-dim); }
+.fixed-table td { vertical-align: middle; }
+.fixed-table td.name { min-width: 120px; white-space: nowrap; }
+.fixed-table td.num { white-space: nowrap; }
+.fixed-table td[data-label] { min-width: 240px; }
+.fixed-table .day { font-family: var(--font-tech); font-size: 12.5px; color: var(--c-cyan); white-space: nowrap; }
+.fixed-table tr.paid td.name { color: var(--c-silver-dim); }
+.fixed-table tr.overdue .day, .fixed-table tr.overdue .name { color: var(--c-amber); }
+.note-kv { margin-top: 12px; font-size: 12px; }
+.note-kv > div { grid-template-columns: 90px 1fr; padding: 3px 0; font-size: 12px; }
+.note-kv dd { color: var(--c-silver-dim); }
+
+/* ===== 入力・照合 ===== */
+.page.recon { max-width: 1320px; }
+.recon-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.recon-card { cursor: pointer; display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; transition: border-color 0.15s, box-shadow 0.15s; }
+.recon-card.selected { border-color: var(--c-cyan); box-shadow: 0 0 0 1px var(--c-cyan), 0 0 18px rgba(25, 227, 232, 0.25); }
+.recon-card.match { background: linear-gradient(180deg, rgba(61, 220, 151, 0.08), var(--panel)); }
+.recon-card.diff { background: linear-gradient(180deg, rgba(255, 77, 94, 0.08), var(--panel)); }
+.rc-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.rc-head strong { font-weight: 500; }
+.rc-badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; color: var(--c-silver-dim); border: 1px solid var(--panel-edge); white-space: nowrap; }
+.rc-badge.ok { color: var(--c-green); border-color: rgba(61, 220, 151, 0.6); }
+.rc-badge.ng { color: var(--c-red); border-color: rgba(255, 77, 94, 0.6); }
+.rc-now { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.rc-now small, .rc-actual small { font-size: 11px; color: var(--c-silver-dim); width: 100%; }
+.rc-now span { font-family: var(--font-tech); font-size: 22px; }
+.rc-now em { font-style: normal; font-family: var(--font-tech); font-size: 13px; animation: pop 2.4s ease-out forwards; }
+.rc-now em.minus { color: var(--c-amber); }
+.rc-now em.plus { color: var(--c-green); }
+.rc-actual .amount-input input { min-height: 34px; font-size: 14px; }
+@keyframes pop { 0% { opacity: 1; transform: translateY(-4px); } 80% { opacity: 1; } 100% { opacity: 0.35; transform: none; } }
+
+.recon-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; align-items: start; }
+.recon-grid > .panel:first-child { display: flex; flex-direction: column; gap: 14px; }
+.editing-banner { margin: 0; padding: 8px 12px; border-radius: 8px; font-size: 13px; color: var(--c-amber); border: 1px solid rgba(245, 184, 61, 0.5); background: rgba(245, 184, 61, 0.08); }
+.helper { border: 1px dashed var(--panel-edge); border-radius: 10px; padding: 6px 12px; }
+.helper summary { cursor: pointer; font-size: 12.5px; color: var(--c-silver-dim); }
+.helper-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0 4px; font-size: 13px; }
+.helper-row input { width: 90px; }
+.helper-row strong { font-family: var(--font-tech); }
+
+.ledger { position: sticky; top: 76px; }
+.ledger-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ledger-sum { display: flex; gap: 14px; font-size: 12px; color: var(--c-silver-dim); flex-wrap: wrap; }
+.ledger-sum strong { font-family: var(--font-tech); color: var(--c-text); font-weight: 500; font-size: 14px; }
+.ledger-sum .ok { color: var(--c-green); }
+.ledger-sum .ng { color: var(--c-red); }
+.ledger-list { max-height: min(62vh, 640px); overflow-y: auto; margin: 0 -6px; }
+.ledger-table { font-size: 13px; }
+.ledger-table thead th { position: sticky; top: 0; background: #08111b; z-index: 1; }
+.ledger-table td { padding: 7px 6px; }
+.ledger-table td.d { font-family: var(--font-tech); font-size: 11.5px; color: var(--c-silver-dim); white-space: nowrap; }
+.ledger-table td.c i { display: inline-block; width: 4px; height: 14px; border-radius: 2px; margin-right: 6px; vertical-align: -2px; }
+.ledger-table td.c small { display: block; font-size: 10.5px; color: var(--c-silver-dim); }
+.ledger-table td.num { white-space: nowrap; }
+.ledger-table td.minus { color: var(--c-amber); }
+.ledger-table td.plus { color: var(--c-green); }
+.ledger-table td.bal { color: var(--c-text); font-size: 13.5px; }
+.ledger-table td.x { width: 30px; }
+.ledger-table tr.opening td { color: var(--c-silver-dim); background: rgba(255, 255, 255, 0.02); }
+.ledger-table tr.salary td.c, .ledger-table tr.fixed td.c, .ledger-table tr.pool td.c { color: var(--c-silver); }
+.ledger-table tr.clickable { cursor: pointer; }
+.ledger-table tr.clickable:hover td { background: rgba(255, 255, 255, 0.03); }
+.ledger-table tr.editing td { background: rgba(245, 184, 61, 0.1); }
+.ledger-table tr.flash td { animation: flashrow 2.4s ease-out; }
+@keyframes flashrow { 0% { background: rgba(25, 227, 232, 0.35); } 100% { background: transparent; } }
+.ledger-table tbody tr:last-child td.bal { color: var(--c-cyan); font-weight: 700; }
+
+/* 口座・残高: 現在を強調 */
+.table.balances .col-now { font-size: 16px; color: var(--c-cyan); }
+.table.balances td.ok { color: var(--c-green); }
+
+/* 用途別集計 */
+.purpose-sum .bar-col { width: 32%; }
+.purpose-sum .bar-col span { display: block; height: 8px; border-radius: 4px; opacity: 0.8; }
+
+@media (max-width: 1000px) {
+  .recon-grid { grid-template-columns: 1fr; }
+  .ledger { position: static; }
+}
+@media (max-width: 760px) {
+  .recon-strip { grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: 78%; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
+  .recon-card { scroll-snap-align: start; }
+  .ledger-list { max-height: 56vh; }
+  .fixed-table thead { display: none; }
+  .fixed-table, .fixed-table tbody { display: block; }
+  .fixed-table tr { display: grid; grid-template-columns: 28px 64px 1fr; gap: 6px 8px; padding: 10px 2px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); align-items: center; }
+  .fixed-table td { border: none; padding: 0; }
+  .fixed-table td[data-label] { grid-column: 1 / -1; display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 8px; min-width: 0; }
+  .fixed-table td.name { min-width: 0; white-space: normal; }
+  .fixed-table td[data-label]::before { content: attr(data-label); font-size: 11px; color: var(--c-silver-dim); }
+  .fixed-table td.num[data-label] { text-align: left; }
+  .fixed-list li { grid-template-columns: 34px minmax(0, 1fr) 28px; }
+  .fixed-list li .src-amount { grid-column: 1 / -2; grid-row: 2; }
+}

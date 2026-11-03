@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { AmountInput, PageHead, Segmented } from '../components/ui';
 import * as repo from '../db/repo';
-import type { CategoryCode, FixedCost, Purpose } from '../db/repo';
+import type { CategoryCode, FixedCost, FixedMode, Purpose } from '../db/repo';
 import { CATEGORY_LABEL } from '../lib/categories';
 import { yen } from '../lib/period';
 import { useApp, useQuery } from '../state/AppContext';
@@ -101,11 +101,12 @@ function Purposes() {
   );
 }
 
-const EMPTY_FIXED: Omit<FixedCost, 'id' | 'sort'> = { name: '', withdraw_day: null, cycle_months: 1, buffer: 0, default_amount: 0, active: 1 };
+const EMPTY_FIXED: Omit<FixedCost, 'id' | 'sort'> = { name: '', withdraw_day: null, cycle_months: 1, buffer: 0, default_amount: 0, active: 1, mode: 'fixed' };
 
 function FixedCosts() {
-  const { mutate } = useApp();
-  const list = useQuery((db) => repo.listFixedCosts(db));
+  const { mutate, ym } = useApp();
+  const rate = useQuery((db) => repo.getSettings(db).bufferRate);
+  const list = useQuery((db) => repo.listFixedCosts(db).map((f) => ({ ...f, auto: repo.estimateFixed(db, f, ym, repo.getSettings(db).bufferRate) })), [ym]);
   const [draft, setDraft] = useState(EMPTY_FIXED);
   const save = (f: FixedCost, patch: Partial<FixedCost>) => mutate((db) => repo.saveFixedCost(db, { ...f, ...patch }));
   const day = (v: string) => (v ? Math.min(31, Math.max(1, Number(v))) : null);
@@ -113,12 +114,12 @@ function FixedCosts() {
   return (
     <section className="panel">
       <div className="table-head">
-        <h2>固定費 ({list.length}) <span className="muted">既定額合計 {yen(list.filter((f) => f.active).reduce((s, f) => s + f.default_amount, 0))}</span></h2>
+        <h2>固定費 ({list.length})</h2>
       </div>
       <div className="table-wrap">
         <table className="table">
           <thead>
-            <tr><th>名称</th><th>引落日</th><th>請求周期</th><th>バッファ</th><th>既定額</th><th>有効</th></tr>
+            <tr><th>名称</th><th>引落日</th><th>算出方法</th><th>金額</th><th>バッファ</th><th className="r">今の自動額</th><th>有効</th></tr>
           </thead>
           <tbody>
             {list.map((f) => (
@@ -126,13 +127,14 @@ function FixedCosts() {
                 <td><TextCell value={f.name} onCommit={(name) => save(f, { name })} /></td>
                 <td><input type="number" min={1} max={31} className="w-day" value={f.withdraw_day ?? ''} onChange={(e) => save(f, { withdraw_day: day(e.target.value) })} /></td>
                 <td>
-                  <select value={f.cycle_months} onChange={(e) => save(f, { cycle_months: Number(e.target.value) })}>
-                    <option value={1}>毎月</option>
-                    <option value={2}>2ヶ月毎</option>
+                  <select value={f.mode} onChange={(e) => save(f, { mode: e.target.value as FixedMode })} aria-label="算出方法">
+                    <option value="fixed">固定額</option>
+                    <option value="average">過去平均</option>
                   </select>
                 </td>
-                <td className="center"><input type="checkbox" aria-label="バッファ" checked={!!f.buffer} onChange={(e) => save(f, { buffer: e.target.checked ? 1 : 0 })} /></td>
                 <td><FixedDefault value={f.default_amount} onCommit={(v) => save(f, { default_amount: v })} /></td>
+                <td className="center"><input type="checkbox" aria-label="バッファ" disabled={f.mode !== 'average'} checked={f.mode === 'average' && !!f.buffer} onChange={(e) => save(f, { buffer: e.target.checked ? 1 : 0 })} /></td>
+                <td className="num" title={f.mode === 'average' ? '直近12期間の引落額 (手入力) の平均' : 'マスタの金額'}>{yen(f.auto)}</td>
                 <td className="center"><input type="checkbox" aria-label="有効" checked={!!f.active} onChange={(e) => save(f, { active: e.target.checked ? 1 : 0 })} /></td>
               </tr>
             ))}
@@ -150,14 +152,20 @@ function FixedCosts() {
       >
         <input value={draft.name} placeholder="名称 (例: 家賃)" onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
         <input type="number" min={1} max={31} className="w-day" placeholder="引落日" value={draft.withdraw_day ?? ''} onChange={(e) => setDraft({ ...draft, withdraw_day: day(e.target.value) })} />
-        <div className="w-amt"><AmountInput value={draft.default_amount || null} placeholder="既定額" onChange={(v) => setDraft({ ...draft, default_amount: v ?? 0 })} /></div>
-        <label className="check"><input type="checkbox" checked={!!draft.buffer} onChange={(e) => setDraft({ ...draft, buffer: e.target.checked ? 1 : 0 })} /> バッファ</label>
+        <select value={draft.mode} aria-label="算出方法" onChange={(e) => setDraft({ ...draft, mode: e.target.value as FixedMode })}>
+          <option value="fixed">固定額</option>
+          <option value="average">過去平均</option>
+        </select>
+        <div className="w-amt"><AmountInput value={draft.default_amount || null} placeholder="金額" onChange={(v) => setDraft({ ...draft, default_amount: v ?? 0 })} /></div>
+        {draft.mode === 'average' && <label className="check"><input type="checkbox" checked={!!draft.buffer} onChange={(e) => setDraft({ ...draft, buffer: e.target.checked ? 1 : 0 })} /> バッファ</label>}
         <button className="btn">追加</button>
       </form>
-      <p className="note">
-        バッファ: 推定額に +10% (電気・ガスなど変動するもの)。推定額は「過去の実額の平均」。2ヶ月毎の請求は請求のある期間だけ記録すれば、1回あたりの額で推定されます。
-        新しく追加した固定費は、次に開始する期間から自動で入ります (開始済みの期間は月次予算画面で追加)。
-      </p>
+      <dl className="kv note-kv">
+        <div><dt>固定額</dt><dd>毎回「金額」をそのまま使う (家賃・サブスクなど)</dd></div>
+        <div><dt>過去平均</dt><dd>直近12期間に手入力した引落額 (0 を除く) の平均。バッファ ✓ で +{Math.round(rate * 100)}%。実績が無いうちは「金額」を使う (電気・ガス・携帯など)</dd></div>
+        <div><dt>今の自動額</dt><dd>選択中の期間で、予算額・引落額が「自動」のときに入る金額</dd></div>
+        <div><dt>有効</dt><dd>✓ の固定費は、新しく開始する期間に自動で入る</dd></div>
+      </dl>
     </section>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SourceAmount, SourceLegend } from '../components/SourceAmount';
 import { AmountInput, Empty, Field, PageHead } from '../components/ui';
 import * as repo from '../db/repo';
 import type { PeriodInput } from '../db/repo';
@@ -161,22 +162,25 @@ export function Budget() {
 
           {period && (
             <section className="panel">
-              <h2>この期間の固定費 <span className="muted">{yen(fixedTotal)}</span></h2>
+              <h2>この期間の固定費 (予算額) <span className="muted">{yen(fixedTotal)}</span> <a className="link" href="#/fixed">引落額を入力 →</a></h2>
               {fixed.length === 0 ? (
                 <Empty>固定費がありません。マスタ管理で登録できます。</Empty>
               ) : (
-                <ul className="fixed-list">
-                  {fixed.map((f) => (
-                    <li key={f.fixed_cost_id}>
-                      <span className="day">{f.withdraw_day ? `${f.withdraw_day}日` : '—'}</span>
-                      <span className="name">{f.name}</span>
-                      <FixedAmount value={f.amount} onCommit={(v) => mutate((db) => repo.setPeriodFixedAmount(db, ym, f.fixed_cost_id, v))} />
-                      <button className="icon-btn small" aria-label={`${f.name}をこの期間から外す`} onClick={() => mutate((db) => repo.removeFixedFromPeriod(db, ym, f.fixed_cost_id))}>
-                        ×
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <SourceLegend />
+                  <ul className="fixed-list">
+                    {fixed.map((f) => (
+                      <li key={f.fixed_cost_id}>
+                        <span className="day">{f.withdraw_day ? `${f.withdraw_day}日` : '—'}</span>
+                        <span className="name">{f.name}<small>引落 {yen(f.actual)}{f.paid ? ' (済)' : ''}</small></span>
+                        <SourceAmount label={`${f.name}の予算額`} input={f.planned_input} auto={f.auto} onSet={(v) => mutate((db) => repo.setPlanned(db, ym, f.fixed_cost_id, v))} />
+                        <button className="icon-btn small" aria-label={`${f.name}をこの期間から外す`} onClick={() => mutate((db) => repo.removeFixedFromPeriod(db, ym, f.fixed_cost_id))}>
+                          ×
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
               {notInPeriod.length > 0 && (
                 <select
@@ -193,7 +197,7 @@ export function Budget() {
                   ))}
                 </select>
               )}
-              <p className="note">金額は過去の実績平均 (バッファ対象は +{Math.round(settings.bufferRate * 100)}%) で自動入力。実額が分かったら上書きしてください。</p>
+              <p className="note">ここは予算額 (自由枠の計算用)。引落額と引落済は「固定費」画面で入力します。自動額は、マスタが固定額ならその金額、過去平均なら直近12期間の引落額の平均 (バッファ対象は +{Math.round(settings.bufferRate * 100)}%)。</p>
             </section>
           )}
         </div>
@@ -207,16 +211,6 @@ function Row({ label, v, total }: { label: string; v: number; total?: boolean })
     <div className={total ? 'total' : ''}>
       <dt>{label}</dt>
       <dd className={v < 0 && total ? 'neg' : ''}>{yen(v)}</dd>
-    </div>
-  );
-}
-
-function FixedAmount({ value, onCommit }: { value: number; onCommit: (v: number) => void }) {
-  const [v, setV] = useState<number | null>(value);
-  useEffect(() => setV(value), [value]);
-  return (
-    <div className="inline-amount" onBlur={() => v !== null && v !== value && onCommit(v)}>
-      <AmountInput value={v} onChange={setV} />
     </div>
   );
 }

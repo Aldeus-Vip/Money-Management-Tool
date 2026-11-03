@@ -113,6 +113,9 @@ export function Settings() {
             <input type="number" step="0.01" min={1} value={s.avgRate} onChange={(e) => set('avg_rate', e.target.value || '1')} />
           </Field>
         </div>
+        <Field label="弁当の単価" hint="入力・照合の「弁当代を計算」で使用">
+          <AmountInput value={s.bentoPrice} onChange={(v) => v !== null && set('bento_price', String(v))} />
+        </Field>
         <Field label="臨時費用の最低額">
           <AmountInput value={s.extraMin} onChange={(v) => v !== null && set('extra_min', String(v))} />
         </Field>

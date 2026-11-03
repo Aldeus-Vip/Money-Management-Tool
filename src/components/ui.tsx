@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { evalAmount } from '../lib/budget';
+import { evalAmount, isExpression } from '../lib/budget';
 import { yen } from '../lib/period';
 
 export function PageHead({ title, children }: { title: string; children?: ReactNode }) {
@@ -55,7 +55,7 @@ export function AmountInput({
         }}
         onBlur={() => parsed !== null && setText(fmt(parsed))}
       />
-      {/[+\-＋－]/.test(text.replace(/^-/, '')) && parsed !== null && <small>= {yen(parsed)}</small>}
+      {isExpression(text) && parsed !== null && <small>= {yen(parsed)}</small>}
     </div>
   );
 }

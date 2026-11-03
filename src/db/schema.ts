@@ -182,6 +182,16 @@ export const MIGRATIONS: string[] = [
     SELECT '手数料', NULL, 'other', 0, COALESCE(MAX(sort),0)+1 FROM purposes WHERE NOT EXISTS (SELECT 1 FROM purposes WHERE name = '手数料');
   INSERT OR IGNORE INTO settings (key, value) VALUES ('carry_opening','0');
   `,
+  // v3: 固定費の算出方法 (固定額 / 過去平均) と、期間ごとの予算額・引落額 (NULL = マスタから自動)
+  `
+  ALTER TABLE fixed_costs ADD COLUMN mode TEXT NOT NULL DEFAULT 'fixed' CHECK (mode IN ('fixed','average'));
+  ALTER TABLE period_fixed_costs ADD COLUMN planned INTEGER;
+  ALTER TABLE period_fixed_costs ADD COLUMN actual INTEGER;
+  -- 既存データは入力済みの金額を手入力として保持
+  UPDATE period_fixed_costs SET planned = amount, actual = amount;
+  UPDATE fixed_costs SET mode = 'average' WHERE buffer = 1;
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('bento_price','400');
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
