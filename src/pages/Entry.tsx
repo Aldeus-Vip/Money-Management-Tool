@@ -261,7 +261,7 @@ function LedgerPanel({ title, rows, flash, current, actual, editingId }: { title
   return (
     <section className="panel ledger">
       <div className="ledger-head">
-        <h2>{title}</h2>
+        <h2 title="行をタップすると編集。給料・固定費 (引落済)・プールの行は、月次予算・固定費・貯蓄の画面で変更します。">{title}</h2>
         <div className="ledger-sum">
           <span>現在 (計算) <strong>{yen(current)}</strong></span>
           {actual !== null && <span>実際 <strong>{yen(actual)}</strong></span>}
