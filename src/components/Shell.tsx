@@ -1,26 +1,37 @@
 import type { ReactNode } from 'react';
 import { Emblem } from './Emblem';
+import { useApp, type SaveState } from '../state/AppContext';
+import { go, type Route } from '../state/router';
+import { fmtMD, parseYM, shiftYM } from '../lib/date';
+import { periodRange } from '../db/repo';
 
-export const NAV = [
+export const NAV: { key: Route; label: string; icon: string; mobile: boolean; phase2?: boolean }[] = [
   { key: 'dashboard', label: 'ダッシュボード', icon: '◎', mobile: true },
   { key: 'entry', label: '取引入力', icon: '＋', mobile: true },
   { key: 'list', label: '取引一覧', icon: '≡', mobile: true },
-  { key: 'wallets', label: '口座・残高', icon: '¥', mobile: true },
-  { key: 'fixed', label: '固定費', icon: '⟳', mobile: false },
-  { key: 'budget', label: '月次予算', icon: '◔', mobile: false },
-  { key: 'pools', label: '貯蓄・プール', icon: '▤', mobile: false },
-  { key: 'analysis', label: '分析', icon: '▥', mobile: true },
+  { key: 'wallets', label: '口座・残高', icon: '□', mobile: false, phase2: true },
+  { key: 'fixed', label: '固定費', icon: '⟳', mobile: false, phase2: true },
+  { key: 'budget', label: '月次予算', icon: '◆', mobile: true },
+  { key: 'pools', label: '貯蓄・プール', icon: '▤', mobile: false, phase2: true },
+  { key: 'analysis', label: '分析', icon: '▥', mobile: false, phase2: true },
   { key: 'master', label: 'マスタ管理', icon: '☰', mobile: false },
-  { key: 'settings', label: '設定', icon: '⚙', mobile: false },
-] as const;
+  { key: 'settings', label: '設定', icon: '⚙', mobile: true },
+];
 
-interface Props {
-  periodYear: number;
-  periodLabel: string;
-  children: ReactNode;
-}
+const SAVE_LABEL: Record<SaveState, string> = {
+  saved: '保存済み',
+  pending: '未保存',
+  saving: '保存中…',
+  error: '保存エラー',
+  conflict: '外部で変更あり',
+};
 
-export function Shell({ periodYear, periodLabel, children }: Props) {
+export function Shell({ route, children }: { route: Route; children: ReactNode }) {
+  const { ym, setYm, db, rev, storage, saveState, lock, saveNow } = useApp();
+  void rev;
+  const range = periodRange(db, ym);
+  const { year } = parseYM(ym);
+
   return (
     <div className="shell">
       <aside className="rail">
@@ -32,10 +43,11 @@ export function Shell({ periodYear, periodLabel, children }: Props) {
           </div>
         </div>
         <nav>
-          {NAV.map((n, i) => (
-            <a key={n.key} href="#" className={i === 0 ? 'active' : ''} aria-current={i === 0 ? 'page' : undefined}>
+          {NAV.map((n) => (
+            <a key={n.key} href={`#/${n.key}`} className={route === n.key ? 'active' : ''} aria-current={route === n.key ? 'page' : undefined}>
               <span className="ico">{n.icon}</span>
               {n.label}
+              {n.phase2 && <em className="soon">P2</em>}
             </a>
           ))}
         </nav>
@@ -48,28 +60,32 @@ export function Shell({ periodYear, periodLabel, children }: Props) {
             <Emblem size={34} />
           </div>
           <div className="period">
-            <button aria-label="前の期間">◀</button>
+            <button aria-label="前の期間" onClick={() => setYm(shiftYM(ym, -1))}>◀</button>
             <div>
-              <small>{periodYear} 期間</small>
-              <strong>{periodLabel}</strong>
+              <small>{year} 期間</small>
+              <strong>{fmtMD(range.start)} – {fmtMD(range.end)}</strong>
             </div>
-            <button aria-label="次の期間">▶</button>
+            <button aria-label="次の期間" onClick={() => setYm(shiftYM(ym, 1))}>▶</button>
           </div>
           <div className="status">
-            <span className="db-pill" title="DB接続状態">
-              <i /> OneDrive / money.sqlite
-            </span>
-            <button className="icon-btn" aria-label="ロック (PIN)">🔒</button>
+            <button
+              className={`db-pill save-${saveState}`}
+              title={`${storage?.label ?? ''} — ${SAVE_LABEL[saveState]}`}
+              onClick={() => (saveState === 'conflict' ? go('settings') : void saveNow())}
+            >
+              <i /> <span>{storage?.label}</span> <b>{SAVE_LABEL[saveState]}</b>
+            </button>
+            <button className="icon-btn" aria-label="ロック" title="ロック" onClick={lock}>🔒</button>
           </div>
         </header>
         <main className="content">{children}</main>
       </div>
 
       <nav className="bottom-nav">
-        {NAV.filter((n) => n.mobile).map((n, i) => (
-          <a key={n.key} href="#" className={i === 0 ? 'active' : ''}>
+        {NAV.filter((n) => n.mobile).map((n) => (
+          <a key={n.key} href={`#/${n.key}`} className={route === n.key ? 'active' : ''}>
             <span className="ico">{n.icon}</span>
-            {n.label.replace('ダッシュボード', 'ホーム')}
+            {n.key === 'dashboard' ? 'ホーム' : n.label.replace('取引', '')}
           </a>
         ))}
       </nav>

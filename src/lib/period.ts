@@ -1,42 +1,44 @@
-/**
- * 給料日起点の「期間」計算。
- * Excel の数式を移植: 25日が土曜→24日、日曜→23日 に前倒し。
- * (祝日の前倒しは Phase 1 で追加予定)
- */
-export const PAYDAY = 25;
+import { addDays, diffDays, toISO, type ISODate, parseYM, type YM } from './date';
+import { isHoliday } from './holidays';
 
-export function paydayOf(year: number, month0: number): Date {
-  const d = new Date(year, month0, PAYDAY);
-  const wd = d.getDay();
-  if (wd === 6) d.setDate(PAYDAY - 1);
-  if (wd === 0) d.setDate(PAYDAY - 2);
-  return d;
+export interface PaydayRule {
+  /** 給料日 (日) */
+  day: number;
+  /** 祝日も前倒しするか */
+  holidays: boolean;
 }
 
-export interface Period {
-  /** 給料日 (期間の初日) */
-  start: Date;
-  /** 次の給料日の前日 (期間の最終日) */
-  end: Date;
+export const DEFAULT_RULE: PaydayRule = { day: 25, holidays: true };
+
+/**
+ * 給料日: 指定日が土日 (と祝日) なら前の営業日へ前倒し。
+ * Excel の「土曜→24日、日曜→23日」を一般化したもの。
+ */
+export function paydayOf(key: YM, rule: PaydayRule = DEFAULT_RULE): ISODate {
+  const { year, month } = parseYM(key);
+  const last = new Date(year, month, 0).getDate();
+  const d = new Date(year, month - 1, Math.min(rule.day, last));
+  while (d.getDay() === 0 || d.getDay() === 6 || (rule.holidays && isHoliday(d))) {
+    d.setDate(d.getDate() - 1);
+  }
+  return toISO(d);
+}
+
+export interface PeriodRange {
+  ym: YM;
+  start: ISODate;
+  /** 最終日 (次の期間の開始日の前日) */
+  end: ISODate;
   days: number;
 }
 
-export function periodOf(year: number, month0: number): Period {
-  const start = paydayOf(year, month0);
-  const next = paydayOf(year, month0 + 1);
-  const end = new Date(next);
-  end.setDate(end.getDate() - 1);
-  const days = Math.round((next.getTime() - start.getTime()) / 86_400_000);
-  return { start, end, days };
+export function makeRange(key: YM, start: ISODate, nextStart: ISODate): PeriodRange {
+  return { ym: key, start, end: addDays(nextStart, -1), days: diffDays(start, nextStart) };
 }
 
-export function elapsedDays(p: Period, today: Date): number {
-  const ms = today.getTime() - p.start.getTime();
-  return Math.min(p.days, Math.max(0, Math.floor(ms / 86_400_000) + 1));
+/** 今日が何日目か (期間外なら 0 または days) */
+export function elapsedDays(p: PeriodRange, today: ISODate): number {
+  return Math.min(p.days, Math.max(0, diffDays(p.start, today) + 1));
 }
 
-export const fmtDate = (d: Date) =>
-  `${d.getMonth() + 1}/${String(d.getDate()).padStart(2, '0')}`;
-
-export const yen = (n: number) =>
-  `${n < 0 ? '−' : ''}¥${Math.abs(Math.round(n)).toLocaleString('ja-JP')}`;
+export const yen = (n: number) => `${n < 0 ? '−' : ''}¥${Math.abs(Math.round(n)).toLocaleString('ja-JP')}`;
