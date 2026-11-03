@@ -1,21 +1,22 @@
 import type { ReactNode } from 'react';
 import { Emblem } from './Emblem';
+import { Icon } from './Icon';
 import { useApp, type SaveState } from '../state/AppContext';
 import { go, type Route } from '../state/router';
 import { fmtMD, parseYM, shiftYM } from '../lib/date';
 import { periodRange } from '../db/repo';
 
-export const NAV: { key: Route; label: string; icon: string; mobile: boolean }[] = [
-  { key: 'dashboard', label: 'ダッシュボード', icon: '◎', mobile: true },
-  { key: 'entry', label: '取引入力', icon: '＋', mobile: true },
-  { key: 'list', label: '取引一覧', icon: '≡', mobile: true },
-  { key: 'wallets', label: '口座・残高', icon: '□', mobile: false },
-  { key: 'fixed', label: '固定費', icon: '⟳', mobile: false },
-  { key: 'budget', label: '月次予算', icon: '◆', mobile: true },
-  { key: 'pools', label: '貯蓄・プール', icon: '▤', mobile: false },
-  { key: 'analysis', label: '分析', icon: '▥', mobile: false },
-  { key: 'master', label: 'マスタ管理', icon: '☰', mobile: false },
-  { key: 'settings', label: '設定', icon: '⚙', mobile: true },
+export const NAV: { key: Route; label: string; mobile: boolean }[] = [
+  { key: 'dashboard', label: 'ダッシュボード', mobile: true },
+  { key: 'entry', label: '取引入力', mobile: true },
+  { key: 'list', label: '取引一覧', mobile: true },
+  { key: 'wallets', label: '口座・残高', mobile: false },
+  { key: 'fixed', label: '固定費', mobile: false },
+  { key: 'budget', label: '月次予算', mobile: true },
+  { key: 'pools', label: '貯蓄・プール', mobile: false },
+  { key: 'analysis', label: '分析', mobile: false },
+  { key: 'master', label: 'マスタ管理', mobile: false },
+  { key: 'settings', label: '設定', mobile: true },
 ];
 
 const SAVE_LABEL: Record<SaveState, string> = {
@@ -45,7 +46,7 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
         <nav>
           {NAV.map((n) => (
             <a key={n.key} href={`#/${n.key}`} className={route === n.key ? 'active' : ''} aria-current={route === n.key ? 'page' : undefined}>
-              <span className="ico">{n.icon}</span>
+              <span className="ico"><Icon name={n.key} /></span>
               {n.label}
             </a>
           ))}
@@ -74,7 +75,7 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
             >
               <i /> <span>{storage?.label}</span> <b>{SAVE_LABEL[saveState]}</b>
             </button>
-            <button className="icon-btn" aria-label="ロック" title="ロック" onClick={lock}>🔒</button>
+            <button className="icon-btn" aria-label="ロック" title="ロック" onClick={lock}><Icon name="lock" size={18} /></button>
           </div>
         </header>
         <main className="content">{children}</main>
@@ -83,7 +84,7 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
       <nav className="bottom-nav">
         {NAV.filter((n) => n.mobile).map((n) => (
           <a key={n.key} href={`#/${n.key}`} className={route === n.key ? 'active' : ''}>
-            <span className="ico">{n.icon}</span>
+            <span className="ico"><Icon name={n.key} /></span>
             {n.key === 'dashboard' ? 'ホーム' : n.label.replace('取引', '')}
           </a>
         ))}

@@ -57,7 +57,10 @@ h2, h3 { margin: 0; font-weight: 500; }
 }
 .rail nav a:hover { color: var(--c-silver); background: rgba(255, 255, 255, 0.03); }
 .rail nav a.active { color: var(--c-cyan); background: var(--c-cyan-soft); border-color: rgba(25, 227, 232, 0.35); box-shadow: inset 3px 0 0 var(--c-cyan); }
-.ico { width: 18px; text-align: center; font-size: 15px; }
+.ico { width: 20px; height: 20px; display: inline-grid; place-items: center; flex: none; }
+.rail nav a.active .icon, .bottom-nav a.active .icon { filter: drop-shadow(0 0 4px rgba(25, 227, 232, 0.7)); }
+.icon-btn { display: inline-grid; place-items: center; color: var(--c-silver-dim); }
+.icon-btn:hover { color: var(--c-cyan); border-color: var(--c-cyan); }
 .rail-foot { margin-top: auto; font-family: var(--font-tech); font-size: 8.5px; letter-spacing: 0.22em; color: var(--c-cyan); opacity: 0.7; text-align: center; }
 
 .main { min-width: 0; display: flex; flex-direction: column; }
