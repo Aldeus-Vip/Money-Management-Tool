@@ -107,3 +107,15 @@ describe('evalAmount (掛け算・括弧)', () => {
     expect(isExpression('2,967')).toBe(false);
   });
 });
+
+describe('budgetTone', () => {
+  it('danger only when remaining is negative', async () => {
+    const { budgetTone } = await import('../src/lib/budget');
+    expect(budgetTone(6505, 6505).text).toBe('使い切り');
+    expect(budgetTone(6506, 6505).tone).toBe('danger');
+    expect(budgetTone(900, 1000).text).toBe('残りわずか');
+    expect(budgetTone(500, 1000, 0.3).text).toBe('ペース超過');
+    expect(budgetTone(100, 1000, 0.3).text).toBe('順調');
+    expect(budgetTone(0, 0).tone).toBe('ok');
+  });
+});

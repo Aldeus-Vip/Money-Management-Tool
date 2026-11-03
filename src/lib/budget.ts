@@ -157,3 +157,27 @@ export function evalAmount(input: string): number | null {
 
 /** 式を含む入力か (結果のプレビュー表示用) */
 export const isExpression = (input: string) => /\d\s*[+\-*/×÷＋－＊／xX]\s*[\d(（]|[()（）]/.test(input.replace(/^[-−]/, ''));
+
+/** 予算枠 (食費・臨時費用・課金・娯楽費その他)。ダッシュボードと右パネルで共用 */
+export interface BudgetItem { key: 'food' | 'extra' | 'charge' | 'fun'; label: string; used: number; limit: number; paced: boolean }
+
+export function budgetItems(p: Period, s: BudgetSummary): BudgetItem[] {
+  return [
+    { key: 'food', label: '食費', used: s.foodUsed, limit: p.food_budget, paced: true },
+    { key: 'extra', label: '臨時費用', used: s.extraUsed, limit: s.extraBudget, paced: true },
+    { key: 'charge', label: '課金', used: s.chargeUsed, limit: p.charge_limit, paced: false },
+    { key: 'fun', label: '娯楽費その他', used: s.funOtherUsed, limit: p.fun_limit, paced: false },
+  ];
+}
+
+/** 枠の状態: エラーは残りがマイナスのときだけ (ちょうど 0 は使い切り) */
+export function budgetTone(used: number, limit: number, pace?: number): { tone: 'ok' | 'warn' | 'danger'; text: string } {
+  const remain = limit - used;
+  const ratio = limit > 0 ? used / limit : 0;
+  const overPace = pace !== undefined && ratio > pace && remain > 0;
+  if (remain < 0) return { tone: 'danger', text: '超過' };
+  if (remain === 0 && limit > 0) return { tone: 'ok', text: '使い切り' };
+  if (ratio >= 0.85 && remain > 0) return { tone: 'warn', text: '残りわずか' };
+  if (overPace) return { tone: 'warn', text: 'ペース超過' };
+  return { tone: 'ok', text: '順調' };
+}

@@ -4,7 +4,7 @@ import { RingGauge } from '../components/RingGauge';
 import { FixedNotices } from '../components/FixedNotices';
 import { shiftYM } from '../lib/date';
 import { Empty } from '../components/ui';
-import { dailyByCategory, withdrawDate } from '../lib/budget';
+import { budgetItems, dailyByCategory, withdrawDate } from '../lib/budget';
 import { CATEGORY_COLOR } from '../lib/categories';
 import { fmtMD, todayISO } from '../lib/date';
 import { elapsedDays, yen } from '../lib/period';
@@ -28,14 +28,7 @@ export function Dashboard() {
     return { ...w, total: list.reduce((a, t) => a + t.amount, 0), count: list.length };
   });
 
-  const budgets = s && period
-    ? [
-        { label: '食費', used: s.foodUsed, limit: period.food_budget, paced: true },
-        { label: '臨時費用', used: s.extraUsed, limit: s.extraBudget, paced: true },
-        { label: '課金', used: s.chargeUsed, limit: period.charge_limit, paced: false },
-        { label: '娯楽費その他', used: s.funOtherUsed, limit: period.fun_limit, paced: false },
-      ]
-    : [];
+  const budgets = s && period ? budgetItems(period, s) : [];
 
   const alerts: { tone: 'warn' | 'danger'; text: string }[] = [];
   if (s) {

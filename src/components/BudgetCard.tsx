@@ -1,3 +1,4 @@
+import { budgetTone } from '../lib/budget';
 import { yen } from '../lib/period';
 
 interface Props {
@@ -12,10 +13,7 @@ interface Props {
 export function BudgetCard({ label, used, limit, pace }: Props) {
   const ratio = limit > 0 ? used / limit : 0;
   const remain = limit - used;
-  // エラーは「残りがマイナス」のときだけ (残り 0 = ちょうど使い切りは正常)
-  const overPace = pace !== undefined && ratio > pace && remain > 0;
-  const tone = remain < 0 ? 'danger' : (ratio >= 0.85 && remain > 0) || overPace ? 'warn' : 'ok';
-  const toneText = remain < 0 ? '超過' : remain === 0 && limit > 0 ? '使い切り' : tone === 'warn' ? (overPace && ratio < 0.85 ? 'ペース超過' : '残りわずか') : '順調';
+  const { tone, text: toneText } = budgetTone(used, limit, pace);
   return (
     <article className={`panel budget tone-${tone}`}>
       <header className="budget-head">
