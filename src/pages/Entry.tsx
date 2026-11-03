@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CommitAmount } from '../components/CommitAmount';
 import { TransferForm } from '../components/TransferForm';
 import { AmountInput, Field, PageHead, Segmented } from '../components/ui';
+import { DateInput } from '../components/DateInput';
 import * as repo from '../db/repo';
 import type { CategoryCode } from '../db/repo';
 import { CATEGORY_COLOR, CATEGORY_LABEL } from '../lib/categories';
@@ -232,7 +233,7 @@ function TxForm({
         </div>
       </Field>
       <div className="row2">
-        <Field label="日付"><input type="date" value={date} required onChange={(e) => setDate(e.target.value)} /></Field>
+        <Field label="日付" group><DateInput value={date} onChange={setDate} /></Field>
         <Field label="メモ"><input value={memo} placeholder="任意" onChange={(e) => setMemo(e.target.value)} /></Field>
       </div>
       <div className="form-actions">

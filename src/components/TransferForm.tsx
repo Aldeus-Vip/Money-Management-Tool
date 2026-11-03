@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AmountInput, Field, Segmented } from './ui';
+import { DateInput } from './DateInput';
 import * as repo from '../db/repo';
 import { todayISO } from '../lib/date';
 import { yen } from '../lib/period';
@@ -67,7 +68,7 @@ export function TransferForm({ start, end, onSaved }: { start: string; end: stri
         <Field label="手数料" hint="その他/手数料の支出として登録"><AmountInput value={fee} onChange={setFee} placeholder="なし" /></Field>
       </div>
       <div className="row2">
-        <Field label="日付"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} required /></Field>
+        <Field label="日付" group><DateInput value={date} onChange={setDate} /></Field>
         <Field label="メモ"><input value={memo} placeholder="任意" onChange={(e) => setMemo(e.target.value)} /></Field>
       </div>
       <div className="form-actions"><span className="spacer" /><button className="btn primary" disabled={!valid}>移動を登録</button></div>

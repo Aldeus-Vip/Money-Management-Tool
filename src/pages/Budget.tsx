@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { FixedNotices } from '../components/FixedNotices';
 import { SourceAmount, SourceLegend } from '../components/SourceAmount';
 import { AmountInput, Empty, Field, PageHead } from '../components/ui';
+import { DateInput } from '../components/DateInput';
 import * as repo from '../db/repo';
 import type { PeriodInput } from '../db/repo';
 import { summarize } from '../lib/budget';
@@ -71,8 +72,8 @@ export function Budget() {
         >
           <h2>{period ? '収入と配分' : '給料を登録して期間を開始'}</h2>
           <div className="row2">
-            <Field label="給料日 (期間の開始日)" hint="実際の振込日が違う場合は修正">
-              <input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} required />
+            <Field label="給料日 (期間の開始日)" hint="実際の振込日が違う場合は修正" group>
+              <DateInput label="給料日" value={form.start_date} onChange={(v) => setForm({ ...form, start_date: v })} />
             </Field>
             <Field label="今月の給料">
               <AmountInput value={form.salary} onChange={num('salary')} />

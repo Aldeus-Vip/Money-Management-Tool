@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AmountInput, Empty, Field, PageHead, Segmented } from '../components/ui';
+import { DateInput } from '../components/DateInput';
 import * as repo from '../db/repo';
 import { fmtMD, fmtYM, todayISO } from '../lib/date';
 import { yen } from '../lib/period';
@@ -75,7 +76,7 @@ export function Pools() {
             </Field>
           )}
           <div className="row2">
-            <Field label="日付"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} required /></Field>
+            <Field label="日付" group><DateInput value={date} onChange={setDate} /></Field>
             <Field label="メモ"><input value={memo} placeholder="任意" onChange={(e) => setMemo(e.target.value)} /></Field>
           </div>
           <div className="form-actions"><span className="spacer" /><button className="btn primary" disabled={!valid}>記録</button></div>

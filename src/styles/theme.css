@@ -718,3 +718,29 @@ strong.warn { color: var(--c-amber); }
   .budget-pane.strip { display: flex; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: 2px; }
   .budget-pane.strip > * { flex: 0 0 auto; min-width: 118px; scroll-snap-align: start; }
 }
+
+/* ===== 日付選択 (日曜始まり) ===== */
+.date-input { position: relative; display: flex; gap: 4px; }
+.date-input .di-field {
+  flex: 1; display: flex; justify-content: space-between; align-items: center; min-height: 40px; padding: 8px 12px; text-align: left;
+  border-radius: 10px; border: 1px solid var(--panel-edge); background: rgba(0, 0, 0, 0.35); font-family: var(--font-body); font-size: 15px;
+}
+.date-input .di-field:focus-visible, .date-input .di-field[aria-expanded='true'] { outline: none; border-color: var(--c-cyan); box-shadow: 0 0 0 3px rgba(25, 227, 232, 0.15); }
+.date-input .di-field i { font-style: normal; color: var(--c-silver-dim); font-size: 11px; }
+.date-input .di-prev, .date-input .di-next { width: 32px; flex: none; border-radius: 10px; border: 1px solid var(--panel-edge); background: transparent; color: var(--c-silver-dim); font-size: 18px; }
+.date-input .di-prev:hover, .date-input .di-next:hover { color: var(--c-cyan); border-color: var(--c-cyan); }
+.di-pop { position: fixed; z-index: 60; width: 290px; padding: 12px; background: #08111b; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6); }
+.di-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.di-head strong { font-weight: 500; }
+.di-head button { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--panel-edge); background: transparent; color: var(--c-silver-dim); font-size: 11px; }
+.di-head button:hover { color: var(--c-cyan); border-color: var(--c-cyan); }
+.di-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.di-grid b { text-align: center; font-weight: 400; font-size: 11px; color: var(--c-silver-dim); padding: 2px 0 4px; }
+.di-grid button { height: 34px; border-radius: 8px; border: 1px solid transparent; background: transparent; font-family: var(--font-tech); font-size: 13px; }
+.di-grid button:hover { border-color: var(--c-cyan); }
+.di-grid .sun { color: #ff7a87; }
+.di-grid .sat { color: #6fb4ff; }
+.di-grid button.today { border-color: rgba(25, 227, 232, 0.5); }
+.di-grid button.on { background: var(--c-cyan); color: #04121a; font-weight: 700; box-shadow: var(--glow); }
+.di-foot { display: flex; justify-content: flex-end; margin-top: 6px; }
+
