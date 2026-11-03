@@ -1,0 +1,19 @@
+# dependencies / build
+node_modules/
+dist/
+
+# 個人データは絶対にcommitしない
+*.xlsm
+*.xlsx
+*.xls
+*.csv
+*.sqlite
+*.sqlite3
+*.db
+/data/
+/private/
+
+# env / OS
+.env*
+.DS_Store
+Thumbs.db

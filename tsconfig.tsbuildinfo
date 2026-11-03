@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/main.tsx","./src/components/BudgetCard.tsx","./src/components/CircuitBackground.tsx","./src/components/DailyChart.tsx","./src/components/Emblem.tsx","./src/components/RingGauge.tsx","./src/components/Shell.tsx","./src/lib/period.ts","./src/mock/sampleData.ts","./src/pages/Dashboard.tsx"],"version":"5.9.3"}
