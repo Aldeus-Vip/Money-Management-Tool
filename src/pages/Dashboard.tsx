@@ -1,6 +1,8 @@
 import { BudgetCard } from '../components/BudgetCard';
 import { DailyChart } from '../components/DailyChart';
 import { RingGauge } from '../components/RingGauge';
+import { FixedNotices } from '../components/FixedNotices';
+import { shiftYM } from '../lib/date';
 import { Empty } from '../components/ui';
 import { dailyByCategory, withdrawDate } from '../lib/budget';
 import { CATEGORY_COLOR } from '../lib/categories';
@@ -128,6 +130,8 @@ export function Dashboard() {
       </section>
 
       <section className="panel upcoming">
+        <FixedNotices ym={ym} title="今期の固定費のお知らせ" compact />
+        <FixedNotices ym={shiftYM(ym, 1)} title="来期の予定" compact />
         <h2>固定費 引落予定</h2>
         {upcoming.length === 0 ? (
           <Empty>固定費が未設定です</Empty>

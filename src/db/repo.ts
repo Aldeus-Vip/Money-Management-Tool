@@ -1,7 +1,7 @@
 import type { Database } from 'sql.js';
 import { all, get, lastId, run, tx } from './sqlite';
 import { shiftYM, type ISODate, type YM } from '../lib/date';
-import { makeRange, paydayOf, type PaydayRule, type PeriodRange } from '../lib/period';
+import { makeRange, paydayOf, yen, type PaydayRule, type PeriodRange } from '../lib/period';
 
 // ===== 型 =====
 export type CategoryCode = 'food' | 'transport' | 'fun' | 'extra' | 'other' | 'income';
@@ -21,14 +21,24 @@ export type FixedMode = 'fixed' | 'average';
 export interface FixedCost {
   id: number; name: string; withdraw_day: number | null; cycle_months: number; buffer: number;
   default_amount: number; sort: number; active: number; mode: FixedMode;
+  /** 請求する月 ('2,4,6' など)。NULL = 毎月 */
+  bill_months: string | null;
 }
+
+/** 金額の予定: from = その年月から以降ずっと / yearly = 毎年この月 / once = その月だけ */
+export type RuleKind = 'from' | 'yearly' | 'once';
+export interface FixedRule { id: number; fixed_cost_id: number; kind: RuleKind; ym: YM | null; month: number | null; amount: number; note: string | null }
+
+/** 自動額の根拠 (画面表示・お知らせ用) */
+export type AutoSource = 'once' | 'yearly' | 'from' | 'fixed' | 'average';
 /**
  * 期間ごとの固定費。planned (予算額) / actual (引落額) は
  * *_input が NULL ならマスタから自動 (auto)、数値なら手入力。
  */
 export interface PeriodFixedCost {
   ym: YM; fixed_cost_id: number; name: string; withdraw_day: number | null; mode: FixedMode; buffer: number;
-  planned_input: number | null; actual_input: number | null; auto: number;
+  planned_input: number | null; actual_input: number | null; auto: number; auto_source: AutoSource; auto_rule: FixedRule | null;
+  bill_months: string | null;
   planned: number; actual: number; paid: number;
 }
 export interface Transaction {
@@ -118,18 +128,61 @@ export function findOrCreatePurpose(db: Database, name: string, category: Catego
 export const listFixedCosts = (db: Database, activeOnly = false) =>
   all<FixedCost>(db, `SELECT * FROM fixed_costs ${activeOnly ? 'WHERE active = 1' : ''} ORDER BY COALESCE(withdraw_day, 99), sort, id`);
 
-export function saveFixedCost(db: Database, f: Omit<FixedCost, 'id' | 'sort' | 'mode'> & { id?: number; mode?: FixedMode }): number {
+export function saveFixedCost(db: Database, f: Omit<FixedCost, 'id' | 'sort' | 'mode' | 'bill_months'> & { id?: number; mode?: FixedMode; bill_months?: string | null }): number {
   const mode = f.mode ?? 'fixed';
+  const months = f.bill_months ?? null;
   if (f.id) {
-    run(db, 'UPDATE fixed_costs SET name=?, withdraw_day=?, cycle_months=?, buffer=?, default_amount=?, active=?, mode=? WHERE id=?', [
-      f.name, f.withdraw_day, f.cycle_months, f.buffer, f.default_amount, f.active, mode, f.id,
+    run(db, 'UPDATE fixed_costs SET name=?, withdraw_day=?, cycle_months=?, buffer=?, default_amount=?, active=?, mode=?, bill_months=? WHERE id=?', [
+      f.name, f.withdraw_day, f.cycle_months, f.buffer, f.default_amount, f.active, mode, months, f.id,
     ]);
     return f.id;
   }
-  run(db, 'INSERT INTO fixed_costs (name, withdraw_day, cycle_months, buffer, default_amount, active, mode, sort) VALUES (?,?,?,?,?,?,?, (SELECT COALESCE(MAX(sort),0)+1 FROM fixed_costs))', [
-    f.name, f.withdraw_day, f.cycle_months, f.buffer, f.default_amount, f.active, mode,
+  run(db, 'INSERT INTO fixed_costs (name, withdraw_day, cycle_months, buffer, default_amount, active, mode, bill_months, sort) VALUES (?,?,?,?,?,?,?,?, (SELECT COALESCE(MAX(sort),0)+1 FROM fixed_costs))', [
+    f.name, f.withdraw_day, f.cycle_months, f.buffer, f.default_amount, f.active, mode, months,
   ]);
   return lastId(db);
+}
+
+// ===== 固定費の請求月・金額の予定 =====
+export const parseMonths = (s: string | null): number[] | null => (s ? s.split(',').map(Number).filter((n) => n >= 1 && n <= 12) : null);
+
+export function monthsLabel(s: string | null): string {
+  const m = parseMonths(s);
+  if (!m || m.length === 12) return '毎月';
+  const key = m.join(',');
+  if (key === '2,4,6,8,10,12') return '偶数月';
+  if (key === '1,3,5,7,9,11') return '奇数月';
+  if (m.length === 1) return `年1回 (${m[0]}月)`;
+  return `${m.join('・')}月`;
+}
+
+export const listRules = (db: Database, fixedCostId?: number) =>
+  all<FixedRule>(db, `SELECT * FROM fixed_cost_rules ${fixedCostId ? 'WHERE fixed_cost_id = ?' : ''} ORDER BY kind, COALESCE(ym, ''), COALESCE(month, 0), id`, fixedCostId ? [fixedCostId] : []);
+
+export function saveRule(db: Database, r: Omit<FixedRule, 'id'>): number {
+  run(db, 'INSERT INTO fixed_cost_rules (fixed_cost_id, kind, ym, month, amount, note) VALUES (?,?,?,?,?,?)', [r.fixed_cost_id, r.kind, r.ym, r.month, r.amount, r.note]);
+  return lastId(db);
+}
+
+export const deleteRule = (db: Database, id: number) => run(db, 'DELETE FROM fixed_cost_rules WHERE id = ?', [id]);
+
+/** その期間に適用される予定 (優先: その月だけ > 毎年この月 > 以降ずっと) */
+export function ruleFor(rules: FixedRule[], key: YM): FixedRule | null {
+  const month = Number(key.slice(5, 7));
+  const once = rules.find((r) => r.kind === 'once' && r.ym === key);
+  if (once) return once;
+  const yearly = rules.find((r) => r.kind === 'yearly' && r.month === month && (!r.ym || r.ym <= key));
+  if (yearly) return yearly;
+  const from = rules.filter((r) => r.kind === 'from' && r.ym && r.ym <= key).sort((a, b) => (b.ym ?? '').localeCompare(a.ym ?? ''))[0];
+  return from ?? null;
+}
+
+/** その期間に請求があるか (請求月 / 毎年・その月だけの予定がある月) */
+export function isBilled(f: Pick<FixedCost, 'bill_months'>, rules: FixedRule[], key: YM): boolean {
+  const month = Number(key.slice(5, 7));
+  if (rules.some((r) => (r.kind === 'once' && r.ym === key) || (r.kind === 'yearly' && r.month === month && (!r.ym || r.ym <= key)))) return true;
+  const m = parseMonths(f.bill_months);
+  return !m || m.includes(month);
 }
 
 // ===== 期間 =====
@@ -173,6 +226,7 @@ export function startPeriod(db: Database, key: YM, p: PeriodInput): void {
   tx(db, () => {
     savePeriod(db, key, p);
     for (const f of listFixedCosts(db, true)) {
+      if (!isBilled(f, listRules(db, f.id), key)) continue; // 請求の無い月 (年1回・隔月など) は入れない
       run(db, 'INSERT OR IGNORE INTO period_fixed_costs (ym, fixed_cost_id, amount) VALUES (?,?,0)', [key, f.id]);
     }
   });
@@ -196,10 +250,11 @@ export function listPeriodFixedCosts(db: Database, key: YM): PeriodFixedCost[] {
     [key],
   );
   return rows.map((r) => {
-    const auto = estimateFixed(db, r, key, rate);
+    const est = estimateDetail(db, r, key, rate);
+    const auto = est.amount;
     return {
       ym: r.ym, fixed_cost_id: r.fixed_cost_id, name: r.name, withdraw_day: r.withdraw_day, mode: r.mode, buffer: r.buffer,
-      planned_input: r.planned_input, actual_input: r.actual_input, auto,
+      planned_input: r.planned_input, actual_input: r.actual_input, auto, auto_source: est.source, auto_rule: est.rule, bill_months: r.bill_months,
       planned: r.planned_input ?? auto, actual: r.actual_input ?? auto, paid: r.paid,
     };
   });
@@ -228,6 +283,17 @@ export const removeFixedFromPeriod = (db: Database, key: YM, fixedCostId: number
  *   実績が無ければマスタの金額。
  */
 export function estimateFixed(db: Database, f: Pick<FixedCost, 'id' | 'mode' | 'buffer' | 'default_amount'>, beforeYm: YM, bufferRate: number): number {
+  return estimateDetail(db, f, beforeYm, bufferRate).amount;
+}
+
+/** 自動額とその根拠。予定 (その月だけ > 毎年この月 > 以降ずっと) があれば優先し、無ければ固定額 / 過去平均 */
+export function estimateDetail(db: Database, f: Pick<FixedCost, 'id' | 'mode' | 'buffer' | 'default_amount'>, beforeYm: YM, bufferRate: number): { amount: number; source: AutoSource; rule: FixedRule | null } {
+  const rule = ruleFor(listRules(db, f.id), beforeYm);
+  if (rule) return { amount: rule.amount, source: rule.kind, rule };
+  return { amount: averageOrFixed(db, f, beforeYm, bufferRate), source: f.mode === 'average' ? 'average' : 'fixed', rule: null };
+}
+
+function averageOrFixed(db: Database, f: Pick<FixedCost, 'id' | 'mode' | 'buffer' | 'default_amount'>, beforeYm: YM, bufferRate: number): number {
   if (f.mode !== 'average') return f.default_amount;
   const r = get<{ avg: number | null }>(
     db,
@@ -433,3 +499,46 @@ export function deleteBatch(db: Database, id: number): void {
 
 export const listMonthlyActuals = (db: Database, fromYm: YM, toYm: YM) =>
   all<{ ym: YM; item: string; amount: number }>(db, 'SELECT ym, item, amount FROM monthly_actuals WHERE ym BETWEEN ? AND ?', [fromYm, toYm]);
+
+// ===== 固定費のお知らせ (月替わりに意識するため) =====
+export interface FixedNotice { fixed_cost_id: number; name: string; kind: 'billed' | 'skip' | 'change' | 'once'; text: string; amount: number }
+
+/** 期間の固定費のお知らせ: 年1回・隔月の請求、請求なし、金額変更、その月だけの金額 */
+export function fixedNotices(db: Database, key: YM): FixedNotice[] {
+  const rate = getSettings(db).bufferRate;
+  const inPeriod = new Set(all<{ id: number }>(db, 'SELECT fixed_cost_id AS id FROM period_fixed_costs WHERE ym = ?', [key]).map((r) => r.id));
+  const out: FixedNotice[] = [];
+  for (const f of listFixedCosts(db)) {
+    if (!f.active && !inPeriod.has(f.id)) continue;
+    const rules = listRules(db, f.id);
+    const billed = isBilled(f, rules, key);
+    const est = estimateDetail(db, f, key, rate);
+    const months = parseMonths(f.bill_months);
+    if (est.source === 'once') {
+      out.push({ fixed_cost_id: f.id, name: f.name, kind: 'once', amount: est.amount, text: `この期間だけ ${yen(est.amount)}${est.rule?.note ? ` (${est.rule.note})` : ''}` });
+    } else if (est.source === 'yearly' && billed) {
+      out.push({ fixed_cost_id: f.id, name: f.name, kind: 'billed', amount: est.amount, text: `毎年${est.rule?.month}月の支払い ${yen(est.amount)}` });
+    } else if (billed && months && months.length < 12) {
+      out.push({ fixed_cost_id: f.id, name: f.name, kind: 'billed', amount: est.amount, text: `${monthsLabel(f.bill_months)}の請求 ${yen(est.amount)}` });
+    } else if (!billed && months && isBilled(f, rules, shiftYM(key, -1))) {
+      // 「請求なし」は前の期間に請求があった場合だけ (年1回の固定費が毎月表示されないように)
+      out.push({ fixed_cost_id: f.id, name: f.name, kind: 'skip', amount: 0, text: `請求なし (${monthsLabel(f.bill_months)})` });
+    }
+    if (est.source === 'from' && est.rule?.ym === key) {
+      const prev = averageOrFixed(db, f, key, rate);
+      const before = ruleFor(rules.filter((r) => r.id !== est.rule!.id), key);
+      const prevAmount = before ? before.amount : prev;
+      out.push({ fixed_cost_id: f.id, name: f.name, kind: 'change', amount: est.amount, text: `この期間から金額変更 ${yen(prevAmount)} → ${yen(est.amount)}` });
+    }
+  }
+  const order = { change: 0, once: 1, billed: 2, skip: 3 };
+  return out.sort((a, b) => order[a.kind] - order[b.kind]);
+}
+
+/** 未登録 (未来) の期間の固定費の見込み: 請求のある有効な固定費 × 自動額 */
+export function projectedFixed(db: Database, key: YM): { fixed_cost_id: number; name: string; amount: number }[] {
+  const rate = getSettings(db).bufferRate;
+  return listFixedCosts(db, true)
+    .filter((f) => isBilled(f, listRules(db, f.id), key))
+    .map((f) => ({ fixed_cost_id: f.id, name: f.name, amount: estimateFixed(db, f, key, rate) }));
+}

@@ -24,6 +24,7 @@ npm run build   # ビルド
 - `docs/05_phase2.md` Phase 2 の実装内容
 - `docs/06_excel-import-plan.md` Excel 取り込みの準備
 - `docs/07_feedback-v1.md` フィードバック対応 (固定費・入力照合)
+- `docs/08_fixed-schedules.md` 固定費の請求月と金額の予定
 
 ## アイコン
 

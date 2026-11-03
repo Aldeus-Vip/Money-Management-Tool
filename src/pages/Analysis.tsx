@@ -23,10 +23,18 @@ export function Analysis() {
     const build = (y: number) => {
       const months: YM[] = Array.from({ length: 12 }, (_, i) => toYm(y, i + 1));
       const imported = repo.listMonthlyActuals(db, months[0], months[11]);
+      const nowYm = repo.ymForDate(db, todayISO());
       return months.map((k) => {
         const m = repo.getPeriod(db, k) ? periodItems(loadPeriod(db, k)) : new Map<string, number>();
-        const source: 'app' | 'import' | 'none' = m.size ? 'app' : imported.some((a) => a.ym === k) ? 'import' : 'none';
+        let source: 'app' | 'import' | 'plan' | 'none' = m.size ? 'app' : imported.some((a) => a.ym === k) ? 'import' : 'none';
         if (!m.size) for (const a of imported.filter((x) => x.ym === k)) m.set(a.item, a.amount);
+        if (source === 'none' && k >= nowYm) {
+          // これからの月: マスタの請求月・予定から固定費の見込み (閲覧のみ)
+          const proj = repo.projectedFixed(db, k);
+          for (const f of proj) m.set(`fixed:${f.name}`, f.amount);
+          m.set('fixed:total', proj.reduce((a, f) => a + f.amount, 0));
+          source = 'plan';
+        }
         return { ym: k, values: m, source };
       });
     };
@@ -42,6 +50,7 @@ export function Analysis() {
     ...ITEM_GROUPS.slice(1),
   ];
   const hasData = table.cur.some((c) => c.source !== 'none');
+  const isFixedRow = (key: string) => key.startsWith('fixed:');
 
   return (
     <div className="page">
@@ -76,8 +85,8 @@ export function Analysis() {
                 <tr>
                   <th />
                   {table.cur.map((c) => (
-                    <th key={c.ym} className={`r ${c.ym === ym ? 'cur' : ''}`} title={c.source === 'import' ? '取り込んだ集計値' : ''}>
-                      {parseYM(c.ym).month}月{c.source === 'import' && <sup>*</sup>}
+                    <th key={c.ym} className={`r ${c.ym === ym ? 'cur' : ''} ${c.source === 'plan' ? 'plan' : ''}`} title={c.source === 'import' ? '取り込んだ集計値' : c.source === 'plan' ? '固定費の見込み (マスタの請求月・予定から)' : ''}>
+                      {parseYM(c.ym).month}月{c.source === 'import' && <sup>*</sup>}{c.source === 'plan' && <sup className="plan-mark">予</sup>}
                     </th>
                   ))}
                   <th className="r">平均</th>
@@ -88,13 +97,15 @@ export function Analysis() {
                 <tbody key={g.title}>
                   <tr className="group"><th colSpan={15}>{g.title}</th></tr>
                   {g.items.map((it) => {
-                    const vals = table.cur.map((c) => (c.source === 'none' ? undefined : c.values.get(it.key) ?? 0));
+                    // 見込みの列は固定費の行だけ表示し、平均には含めない
+                    const vals = table.cur.map((c) => (c.source === 'none' || (c.source === 'plan' && !isFixedRow(it.key)) ? undefined : c.values.get(it.key) ?? 0));
+                    const avgVals = vals.map((v, i) => (table.cur[i].source === 'plan' ? undefined : v));
                     const prevVals = table.prev.map((c) => (c.source === 'none' ? undefined : c.values.get(it.key) ?? 0));
                     return (
                       <tr key={it.key} className={it.key === 'fixed:total' || it.key === 'free:remain' ? 'sum' : ''}>
                         <th>{it.label}</th>
-                        {vals.map((v, i) => <td key={i} className={`num ${table.cur[i].ym === ym ? 'cur' : ''} ${v !== undefined && v < 0 ? 'neg' : ''}`}>{fmtNum(v)}</td>)}
-                        <td className="num avg">{fmtNum(average(vals))}</td>
+                        {vals.map((v, i) => <td key={i} className={`num ${table.cur[i].ym === ym ? 'cur' : ''} ${table.cur[i].source === 'plan' ? 'plan' : ''} ${v !== undefined && v < 0 ? 'neg' : ''}`}>{fmtNum(v)}</td>)}
+                        <td className="num avg">{fmtNum(average(avgVals))}</td>
                         <td className="num avg">{fmtNum(average(prevVals))}</td>
                       </tr>
                     );
@@ -104,7 +115,7 @@ export function Analysis() {
             </table>
           </div>
         )}
-        <p className="note">月 = 給料日が属する月 (期間)。* は Excel から取り込んだ集計値。平均はデータのある月のみ。{summary && ` 今期の自由枠残り ${yen(summary.freeRemain)}`}</p>
+        <p className="note">月 = 給料日が属する月 (期間)。* は Excel から取り込んだ集計値。「予」の列は固定費の見込み (マスタの請求月・予定から。編集はマスタ管理で、平均には含めない)。平均はデータのある月のみ。{summary && ` 今期の自由枠残り ${yen(summary.freeRemain)}`}</p>
       </section>
     </div>
   );

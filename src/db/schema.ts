@@ -192,6 +192,20 @@ export const MIGRATIONS: string[] = [
   UPDATE fixed_costs SET mode = 'average' WHERE buffer = 1;
   INSERT OR IGNORE INTO settings (key, value) VALUES ('bento_price','400');
   `,
+  // v4: 固定費の請求月 (年1回・隔月など) と金額の予定 (以降ずっと / 毎年この月 / その月だけ)
+  `
+  ALTER TABLE fixed_costs ADD COLUMN bill_months TEXT;  -- NULL = 毎月 / '2,4,6,8,10,12' のように請求する月
+  CREATE TABLE fixed_cost_rules (
+    id            INTEGER PRIMARY KEY,
+    fixed_cost_id INTEGER NOT NULL REFERENCES fixed_costs(id) ON DELETE CASCADE,
+    kind          TEXT NOT NULL CHECK (kind IN ('from','yearly','once')),
+    ym            TEXT,     -- from: 開始年月 / once: 対象年月 / yearly: 開始年月 (任意)
+    month         INTEGER,  -- yearly: 対象の月 (1〜12)
+    amount        INTEGER NOT NULL,
+    note          TEXT
+  );
+  CREATE INDEX idx_fixed_cost_rules ON fixed_cost_rules(fixed_cost_id);
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

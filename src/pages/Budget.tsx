@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { FixedNotices } from '../components/FixedNotices';
 import { SourceAmount, SourceLegend } from '../components/SourceAmount';
 import { AmountInput, Empty, Field, PageHead } from '../components/ui';
 import * as repo from '../db/repo';
@@ -16,6 +17,7 @@ export function Budget() {
   const { range, period, txs, fixed, fixedTotal, rec, settings, poolUse, carry, openingTotal } = usePeriodData();
   const prev = useQuery((db) => repo.getPeriod(db, shiftYM(ym, -1)), [ym]);
   const masters = useQuery((db) => repo.listFixedCosts(db, true));
+  const projected = useQuery((db) => repo.projectedFixed(db, ym), [ym]);
 
   const initial = (): PeriodInput =>
     period ?? {
@@ -48,7 +50,7 @@ export function Budget() {
   };
 
   // 未保存の入力値でプレビュー
-  const preview = summarize({ ym, memo: null, ...form }, txs, period ? fixedTotal : masters.reduce((s, f) => s + f.default_amount, 0), { poolUse, carry });
+  const preview = summarize({ ym, memo: null, ...form }, txs, period ? fixedTotal : projected.reduce((s, f) => s + f.amount, 0), { poolUse, carry });
   const notInPeriod = masters.filter((m) => !fixed.some((f) => f.fixed_cost_id === m.id));
 
   return (
@@ -154,10 +156,15 @@ export function Budget() {
                 {preview.extraBudget < rec.extra && ' を下回っています'}
               </p>
             )}
-            {!period && <p className="note">固定費はマスタの既定額で仮計算しています。</p>}
+            {!period && <p className="note">固定費は、この期間に請求のある固定費 ({projected.length} 件) の自動額で仮計算しています。</p>}
             {!settings.carryOpening && openingTotal !== 0 && (
               <p className="note">参考: 期首残高の合計 {yen(openingTotal)} (Excel ではこれを自由枠に加算。設定で切替可・繰越ルールは相談中)</p>
             )}
+          </section>
+
+          <section className="panel">
+            <h2>{period ? '今期の固定費のお知らせ' : '開始すると入る固定費のお知らせ'}</h2>
+            <FixedNotices ym={ym} />
           </section>
 
           {period && (

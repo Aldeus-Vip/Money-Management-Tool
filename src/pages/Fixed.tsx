@@ -1,4 +1,5 @@
 import { SourceAmount, SourceLegend } from '../components/SourceAmount';
+import { FixedNotices } from '../components/FixedNotices';
 import { Empty, PageHead } from '../components/ui';
 import * as repo from '../db/repo';
 import { withdrawDate } from '../lib/budget';
@@ -57,6 +58,11 @@ export function Fixed() {
         {bank && <div className="panel stat"><span>口座 見込み残高</span><strong className={bank.projected < 0 ? 'neg' : ''}>{yen(bank.projected)}</strong><small>未引落を全て引いた後</small></div>}
       </section>
 
+      <section className="panel">
+        <h2>今期の固定費のお知らせ</h2>
+        <FixedNotices ym={ym} />
+      </section>
+
       {overdue.length > 0 && (
         <p className="alert warn">▲ 引落日を過ぎて未チェック: {overdue.map((f) => f.name).join('、')}</p>
       )}
@@ -80,7 +86,7 @@ export function Fixed() {
                       <tr key={f.fixed_cost_id} className={`${f.paid ? 'paid' : ''} ${!f.paid && f.date && f.date < today ? 'overdue' : ''}`}>
                         <td className="center"><input type="checkbox" checked={!!f.paid} onChange={(e) => toggle(f.fixed_cost_id, e.target.checked)} aria-label={`${f.name} 引落済`} /></td>
                         <td className="day">{f.date ? fmtMD(f.date) : '—'}</td>
-                        <td className="name">{f.name}<small>{f.mode === 'average' ? `過去平均${f.buffer ? '+バッファ' : ''}` : '固定額'}</small></td>
+                        <td className="name">{f.name}<small>{autoLabel(f)}</small></td>
                         <td data-label="予算額"><SourceAmount label={`${f.name}の予算額`} input={f.planned_input} auto={f.auto} onSet={(v) => mutate((db) => repo.setPlanned(db, ym, f.fixed_cost_id, v))} /></td>
                         <td data-label="引落額"><SourceAmount label={`${f.name}の引落額`} input={f.actual_input} auto={f.auto} onSet={(v) => mutate((db) => repo.setActualFixed(db, ym, f.fixed_cost_id, v))} /></td>
                         <td className={`num ${diff > 0 ? 'neg' : ''}`} data-label="差">{diff === 0 ? '—' : `${diff > 0 ? '+' : ''}${yen(diff)}`}</td>
@@ -115,4 +121,13 @@ export function Fixed() {
       </div>
     </div>
   );
+}
+
+function autoLabel(f: repo.PeriodFixedCost): string {
+  const base = f.mode === 'average' ? `過去平均${f.buffer ? '+バッファ' : ''}` : '固定額';
+  const months = repo.monthsLabel(f.bill_months);
+  const rule = f.auto_rule
+    ? f.auto_rule.kind === 'once' ? 'その月だけの予定' : f.auto_rule.kind === 'yearly' ? `毎年${f.auto_rule.month}月の予定` : `${f.auto_rule.ym?.replace('-', '/')}〜の予定`
+    : base;
+  return months === '毎月' ? rule : `${months} · ${rule}`;
 }
