@@ -106,21 +106,32 @@ const EMPTY_FIXED: Omit<FixedCost, 'id' | 'sort'> = { name: '', withdraw_day: nu
 function FixedCosts() {
   const { mutate, ym } = useApp();
   const rate = useQuery((db) => repo.getSettings(db).bufferRate);
-  const list = useQuery((db) => repo.listFixedCosts(db).map((f) => ({ ...f, auto: repo.estimateDetail(db, f, ym, repo.getSettings(db).bufferRate), rules: repo.listRules(db, f.id) })), [ym]);
+  const [showInactive, setShowInactive] = useState(false);
+  const all = useQuery((db) => repo.listFixedCosts(db).map((f) => ({ ...f, auto: repo.estimateDetail(db, f, ym, repo.getSettings(db).bufferRate), rules: repo.listRules(db, f.id), usage: repo.fixedCostUsage(db, f.id) })), [ym]);
+  // 無効にした直後の行は、画面を開き直すまで表示したまま (チェックを外した瞬間に消えないように)
+  const [keep, setKeep] = useState<Set<number>>(new Set());
+  const list = all.filter((f) => showInactive || f.active || keep.has(f.id));
   const [open, setOpen] = useState<number | null>(null);
+  const [delOpen, setDelOpen] = useState<number | null>(null);
   const [draft, setDraft] = useState(EMPTY_FIXED);
-  const save = (f: FixedCost, patch: Partial<FixedCost>) => mutate((db) => repo.saveFixedCost(db, { ...f, ...patch }));
+  const save = (f: FixedCost, patch: Partial<FixedCost>) => {
+    if (patch.active === 0) setKeep((k) => new Set(k).add(f.id));
+    mutate((db) => repo.saveFixedCost(db, { ...f, ...patch }));
+  };
   const day = (v: string) => (v ? Math.min(31, Math.max(1, Number(v))) : null);
 
   return (
     <section className="panel">
       <div className="table-head">
-        <h2>固定費 ({list.length})</h2>
+        <h2>固定費 ({list.length}{all.length !== list.length ? ` / 全 ${all.length}` : ''})</h2>
+        <label className="check">
+          <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} /> 無効も表示
+        </label>
       </div>
       <div className="table-wrap">
         <table className="table">
           <thead>
-            <tr><th>名称</th><th>引落日</th><th>請求月</th><th>算出方法</th><th>金額</th><th>バッファ</th><th className="r">今の自動額</th><th>予定</th><th>有効</th></tr>
+            <tr><th>名称</th><th>引落日</th><th>請求月</th><th>算出方法</th><th>金額</th><th>バッファ</th><th className="r">今の自動額</th><th>予定</th><th>有効</th><th /></tr>
           </thead>
           <tbody>
             {list.map((f) => (
@@ -140,9 +151,17 @@ function FixedCosts() {
                 <td className="num" title={SOURCE_LABEL[f.auto.source]}>{yen(f.auto.amount)}{f.auto.source !== 'fixed' && f.auto.source !== 'average' && <small className="rule-src">{SOURCE_LABEL[f.auto.source]}</small>}</td>
                 <td><button type="button" className={`btn ghost small-btn ${f.rules.length ? 'has' : ''}`} onClick={() => setOpen(open === f.id ? null : f.id)} aria-expanded={open === f.id}>{f.rules.length ? `${f.rules.length} 件` : '追加'} {open === f.id ? '▴' : '▾'}</button></td>
                 <td className="center"><input type="checkbox" aria-label="有効" checked={!!f.active} onChange={(e) => save(f, { active: e.target.checked ? 1 : 0 })} /></td>
+                <td><button type="button" className="icon-btn small" aria-label={`${f.name}を削除`} title="削除" onClick={() => {
+                  if (f.usage === 0) {
+                    if (confirm(`「${f.name}」を削除しますか?`)) mutate((db) => repo.deleteFixedCost(db, f.id));
+                  } else setDelOpen(delOpen === f.id ? null : f.id);
+                }}>×</button></td>
               </tr>
               {open === f.id && (
-                <tr className="rule-row"><td colSpan={9}><RulesEditor f={f} rules={f.rules} onMonths={(v) => save(f, { bill_months: v })} /></td></tr>
+                <tr className="rule-row"><td colSpan={10}><RulesEditor f={f} rules={f.rules} onMonths={(v) => save(f, { bill_months: v })} /></td></tr>
+              )}
+              {delOpen === f.id && (
+                <tr className="rule-row del-row"><td colSpan={10}><DeletePanel f={f} usage={f.usage} others={all.filter((o) => o.id !== f.id)} onClose={() => setDelOpen(null)} /></td></tr>
               )}
               </Fragment>
             ))}
@@ -182,6 +201,40 @@ function FixedCosts() {
 
 const SOURCE_LABEL: Record<repo.AutoSource, string> = { once: 'その月だけ', yearly: '毎年この月', from: '以降ずっと', fixed: '固定額', average: '過去平均' };
 const RULE_LABEL: Record<RuleKind, string> = { from: '以降ずっと', yearly: '毎年この月', once: 'その月だけ' };
+
+/** 使用中の固定費の削除: 統合して削除 / 無効にする */
+function DeletePanel({ f, usage, others, onClose }: { f: FixedCost; usage: number; others: FixedCost[]; onClose: () => void }) {
+  const { mutate, toast } = useApp();
+  const [target, setTarget] = useState(0);
+  const to = others.find((o) => o.id === target);
+  return (
+    <div className="del-panel">
+      <p>「{f.name}」は過去 <strong>{usage} 期間</strong> の記録で使われているため、そのままは削除できません。</p>
+      <div className="del-actions">
+        <div className="del-merge">
+          <select value={target} onChange={(e) => setTarget(Number(e.target.value))} aria-label="統合先">
+            <option value={0}>統合先を選択…</option>
+            {others.map((o) => <option key={o.id} value={o.id}>{o.name}{o.active ? '' : ' (無効)'}</option>)}
+          </select>
+          <button type="button" className="btn danger" disabled={!to} onClick={() => {
+            if (!to || !confirm(`「${f.name}」の過去 ${usage} 期間の記録を「${to.name}」に移して、「${f.name}」を削除します。よろしいですか?`)) return;
+            mutate((db) => repo.mergeFixedCost(db, f.id, to.id));
+            toast(`「${f.name}」を「${to.name}」に統合しました`);
+            onClose();
+          }}>統合して削除</button>
+        </div>
+        <span className="muted">または</span>
+        <button type="button" className="btn" disabled={!f.active} onClick={() => {
+          mutate((db) => repo.saveFixedCost(db, { ...f, active: 0 }));
+          toast(`「${f.name}」を無効にしました (過去の記録は残ります)`);
+          onClose();
+        }}>{f.active ? '無効にする (記録は残す)' : '無効になっています'}</button>
+        <button type="button" className="btn ghost" onClick={onClose}>キャンセル</button>
+      </div>
+      <p className="note">統合: 過去の金額は統合先の記録になります (同じ期間に両方あれば合算)。費用実績の集計値も統合されます。無効: 一覧から隠れ、新しい期間に入らなくなります (「無効も表示」で再表示)。</p>
+    </div>
+  );
+}
 
 function BillMonthsSelect({ value, onChange, onCustom }: { value: string | null; onChange: (v: string | null) => void; onCustom: () => void }) {
   const m = repo.parseMonths(value);

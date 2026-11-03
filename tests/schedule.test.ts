@@ -59,3 +59,28 @@ describe('fixed cost schedules (請求月・予定)', () => {
     expect(row).toMatchObject({ planned: 54000, auto_source: 'from', planned_input: null });
   });
 });
+
+describe('fixed cost delete / merge', () => {
+  it('deletes only unused items; merge moves history and sums the same period', async () => {
+    const db = await openDb(null);
+    const a = repo.saveFixedCost(db, fc({ name: '受信料', default_amount: 1000 }));
+    const b = repo.saveFixedCost(db, fc({ name: '受信料代', default_amount: 300 }));
+    const unused = repo.saveFixedCost(db, fc({ name: '未使用', active: 0 }));
+    repo.saveRule(db, { fixed_cost_id: unused, kind: 'from', ym: '2026-01', month: null, amount: 1, note: null });
+    repo.deleteFixedCost(db, unused);
+    expect(repo.listFixedCosts(db).map((f) => f.name)).not.toContain('未使用');
+    expect(repo.listRules(db)).toHaveLength(0);
+
+    repo.startPeriod(db, '2026-09', base('2026-09-25'));       // a と b の両方
+    repo.saveFixedCost(db, { ...repo.listFixedCosts(db).find((f) => f.id === a)!, active: 0 });
+    repo.startPeriod(db, '2026-10', base('2026-10-23'));       // b のみ
+    expect(() => repo.deleteFixedCost(db, b)).toThrow();
+    db.run("INSERT INTO monthly_actuals (ym, item, amount) VALUES ('2023-05', 'fixed:受信料代', 500)");
+
+    repo.mergeFixedCost(db, b, a);
+    expect(repo.listFixedCosts(db).map((f) => f.name)).toEqual(['受信料']);
+    expect(repo.listPeriodFixedCosts(db, '2026-09')[0]).toMatchObject({ name: '受信料', planned: 1300, actual: 1300 });
+    expect(repo.listPeriodFixedCosts(db, '2026-10')[0]).toMatchObject({ name: '受信料', planned: 300, planned_input: 300 });
+    expect(repo.listMonthlyActuals(db, '2023-01', '2023-12')).toEqual([{ ym: '2023-05', item: 'fixed:受信料', amount: 500 }]);
+  });
+});

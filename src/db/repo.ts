@@ -542,3 +542,55 @@ export function projectedFixed(db: Database, key: YM): { fixed_cost_id: number; 
     .filter((f) => isBilled(f, listRules(db, f.id), key))
     .map((f) => ({ fixed_cost_id: f.id, name: f.name, amount: estimateFixed(db, f, key, rate) }));
 }
+
+// ===== 固定費の削除・統合 =====
+/** 固定費が使われている期間の数 */
+export const fixedCostUsage = (db: Database, id: number) =>
+  Number(get<{ n: number }>(db, 'SELECT COUNT(*) AS n FROM period_fixed_costs WHERE fixed_cost_id = ?', [id])?.n ?? 0);
+
+/** 削除: 過去の期間で使われていない場合のみ (予定も一緒に削除) */
+export function deleteFixedCost(db: Database, id: number): void {
+  if (fixedCostUsage(db, id) > 0) throw new Error('過去の期間で使われているため削除できません (統合するか無効にしてください)');
+  tx(db, () => {
+    run(db, 'DELETE FROM fixed_cost_rules WHERE fixed_cost_id = ?', [id]);
+    run(db, 'DELETE FROM fixed_costs WHERE id = ?', [id]);
+  });
+}
+
+/**
+ * 統合: from の過去の記録を to に移してから from を削除 (名前の揺れの整理など)。
+ * 同じ期間に両方ある場合は金額を合算 (手入力として保存)。
+ */
+export function mergeFixedCost(db: Database, fromId: number, toId: number): void {
+  if (fromId === toId) return;
+  const fromRows = listAllPeriodRows(db, fromId);
+  const from = get<FixedCost>(db, 'SELECT * FROM fixed_costs WHERE id = ?', [fromId]);
+  const to = get<FixedCost>(db, 'SELECT * FROM fixed_costs WHERE id = ?', [toId]);
+  if (!from || !to) return;
+  tx(db, () => {
+    for (const r of fromRows) {
+      const target = listPeriodFixedCosts(db, r.ym).find((x) => x.fixed_cost_id === toId);
+      const src = listPeriodFixedCosts(db, r.ym).find((x) => x.fixed_cost_id === fromId)!;
+      if (target) {
+        run(db, 'UPDATE period_fixed_costs SET planned = ?, actual = ?, paid = ? WHERE ym = ? AND fixed_cost_id = ?', [
+          target.planned + src.planned, target.actual + src.actual, target.paid || src.paid ? 1 : 0, r.ym, toId,
+        ]);
+        run(db, 'DELETE FROM period_fixed_costs WHERE ym = ? AND fixed_cost_id = ?', [r.ym, fromId]);
+      } else {
+        // 自動額は統合先のマスタで変わるため、元の金額を手入力として保持
+        run(db, 'UPDATE period_fixed_costs SET fixed_cost_id = ?, planned = ?, actual = ? WHERE ym = ? AND fixed_cost_id = ?', [toId, src.planned, src.actual, r.ym, fromId]);
+      }
+    }
+    // 取り込んだ集計値 (費用実績) の名前も統合
+    for (const a of all<{ ym: YM; amount: number; batch_id: number | null }>(db, 'SELECT ym, amount, batch_id FROM monthly_actuals WHERE item = ?', [`fixed:${from.name}`])) {
+      run(db, `INSERT INTO monthly_actuals (ym, item, amount, batch_id) VALUES (?,?,?,?)
+               ON CONFLICT(ym, item) DO UPDATE SET amount = amount + excluded.amount`, [a.ym, `fixed:${to.name}`, a.amount, a.batch_id]);
+    }
+    run(db, 'DELETE FROM monthly_actuals WHERE item = ?', [`fixed:${from.name}`]);
+    run(db, 'DELETE FROM fixed_cost_rules WHERE fixed_cost_id = ?', [fromId]);
+    run(db, 'DELETE FROM fixed_costs WHERE id = ?', [fromId]);
+  });
+}
+
+const listAllPeriodRows = (db: Database, id: number) =>
+  all<{ ym: YM }>(db, 'SELECT ym FROM period_fixed_costs WHERE fixed_cost_id = ? ORDER BY ym', [id]);
