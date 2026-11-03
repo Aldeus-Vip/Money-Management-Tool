@@ -5,15 +5,15 @@ import { go, type Route } from '../state/router';
 import { fmtMD, parseYM, shiftYM } from '../lib/date';
 import { periodRange } from '../db/repo';
 
-export const NAV: { key: Route; label: string; icon: string; mobile: boolean; phase2?: boolean }[] = [
+export const NAV: { key: Route; label: string; icon: string; mobile: boolean }[] = [
   { key: 'dashboard', label: 'ダッシュボード', icon: '◎', mobile: true },
   { key: 'entry', label: '取引入力', icon: '＋', mobile: true },
   { key: 'list', label: '取引一覧', icon: '≡', mobile: true },
-  { key: 'wallets', label: '口座・残高', icon: '□', mobile: false, phase2: true },
-  { key: 'fixed', label: '固定費', icon: '⟳', mobile: false, phase2: true },
+  { key: 'wallets', label: '口座・残高', icon: '□', mobile: false },
+  { key: 'fixed', label: '固定費', icon: '⟳', mobile: false },
   { key: 'budget', label: '月次予算', icon: '◆', mobile: true },
-  { key: 'pools', label: '貯蓄・プール', icon: '▤', mobile: false, phase2: true },
-  { key: 'analysis', label: '分析', icon: '▥', mobile: false, phase2: true },
+  { key: 'pools', label: '貯蓄・プール', icon: '▤', mobile: false },
+  { key: 'analysis', label: '分析', icon: '▥', mobile: false },
   { key: 'master', label: 'マスタ管理', icon: '☰', mobile: false },
   { key: 'settings', label: '設定', icon: '⚙', mobile: true },
 ];
@@ -47,7 +47,6 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
             <a key={n.key} href={`#/${n.key}`} className={route === n.key ? 'active' : ''} aria-current={route === n.key ? 'page' : undefined}>
               <span className="ico">{n.icon}</span>
               {n.label}
-              {n.phase2 && <em className="soon">P2</em>}
             </a>
           ))}
         </nav>

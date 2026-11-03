@@ -12,7 +12,9 @@ export interface BudgetSummary {
   afterFixed: number;        // 固定費支払後残高        D24
   freeFrame: number;         // 自由枠                  D28 = D24 − 食費予算
   received: number;          // 受取金                  (K4 の一部)
-  freeTotal: number;         // 自由枠合計              K7 (繰越は保留 → extra_add で暫定加算)
+  poolUse: number;           // プールからの使用        (K4 の一部)
+  carry: number;             // 期首残高の加算 (Excel 方式・設定で ON の場合のみ)
+  freeTotal: number;         // 自由枠合計              K7
   afterLimits: number;       // 課金・娯楽枠を除いた残り K14
   extraBudget: number;       // 臨時費用枠              K20
   foodUsed: number;
@@ -25,7 +27,9 @@ export interface BudgetSummary {
 
 export const emptyByCategory = (): Record<CategoryCode, number> => ({ food: 0, transport: 0, fun: 0, extra: 0, other: 0, income: 0 });
 
-export function summarize(p: Period, txs: Transaction[], fixedTotal: number): BudgetSummary {
+export function summarize(p: Period, txs: Transaction[], fixedTotal: number, extra: { poolUse?: number; carry?: number } = {}): BudgetSummary {
+  const poolUse = extra.poolUse ?? 0;
+  const carry = extra.carry ?? 0;
   const by = emptyByCategory();
   let charge = 0;
   for (const t of txs) {
@@ -36,7 +40,7 @@ export function summarize(p: Period, txs: Transaction[], fixedTotal: number): Bu
   const afterFixed = income - fixedTotal;
   const freeFrame = afterFixed - p.food_budget;
   const received = by.income;
-  const freeTotal = freeFrame + received + p.extra_add;
+  const freeTotal = freeFrame + received + poolUse + carry + p.extra_add;
   const afterLimits = freeTotal - p.charge_limit - p.fun_limit;
   const extraBudget = afterLimits - p.saving_move - p.fun_move;
   const funOtherUsed = by.fun - charge;
@@ -47,6 +51,8 @@ export function summarize(p: Period, txs: Transaction[], fixedTotal: number): Bu
     afterFixed,
     freeFrame,
     received,
+    poolUse,
+    carry,
     freeTotal,
     afterLimits,
     extraBudget,

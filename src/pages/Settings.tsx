@@ -8,6 +8,39 @@ import { hashPin, isValidPin, verifyPin } from '../lib/pin';
 import { paydayOf } from '../lib/period';
 import { useApp, useQuery } from '../state/AppContext';
 
+function Imports() {
+  const { mutate, toast } = useApp();
+  const batches = useQuery((d) => repo.listBatches(d));
+  return (
+    <section className="panel">
+      <h2>データ取り込み (Excel)</h2>
+      <p className="note">
+        過去の Excel (2023年10月〜) の取り込みは、ファイル形式を確認したうえで対応します。
+        取り込んだデータは「取り込み単位」ごとに記録され、ここから単位ごとに削除してやり直せます (手入力のデータには影響しません)。
+      </p>
+      {batches.length === 0 ? (
+        <p className="empty">取り込み履歴はありません</p>
+      ) : (
+        <ul className="tx-list compact">
+          {batches.map((b) => (
+            <li key={b.id}>
+              <i style={{ background: 'var(--c-blue)' }} />
+              <time>{b.imported_at.slice(5, 10).replace('-', '/')}</time>
+              <span className="tx-main">{b.source}<small>{b.rows} 行{b.note ? ` · ${b.note}` : ''}</small></span>
+              <span />
+              <button className="icon-btn small" aria-label="取り込みを削除" onClick={() => {
+                if (!confirm(`「${b.source}」で取り込んだ ${b.rows} 行を削除しますか?`)) return;
+                mutate((d) => repo.deleteBatch(d, b.id));
+                toast('取り込みを削除しました', 'warn');
+              }}>×</button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 export function Settings() {
   const { db, storage, saveState, saveNow, connect, disconnect, mutate, toast, ym } = useApp();
   const s = useQuery((d) => repo.getSettings(d));
@@ -83,7 +116,15 @@ export function Settings() {
         <Field label="臨時費用の最低額">
           <AmountInput value={s.extraMin} onChange={(v) => v !== null && set('extra_min', String(v))} />
         </Field>
+        <Field label="期首残高を自由枠に加算 (Excel 方式)" hint="Excel では給料前の残高 (口座・現金・PayPay・Suica) を自由枠に足していました。繰越ルールの確定まで仮の設定です">
+          <label className="switch">
+            <input type="checkbox" checked={s.carryOpening} onChange={(e) => set('carry_opening', e.target.checked ? '1' : '0')} />
+            <span>{s.carryOpening ? 'ON' : 'OFF (その他加算で手入力)'}</span>
+          </label>
+        </Field>
       </section>
+
+      <Imports />
 
       <PinChange hash={s.pinHash} salt={s.pinSalt} onSave={async (pin) => {
         const h = await hashPin(pin);

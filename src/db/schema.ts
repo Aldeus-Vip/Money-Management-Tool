@@ -4,7 +4,7 @@ import type { Database } from 'sql.js';
  * スキーマのマイグレーション。DB ファイルの PRAGMA user_version で版を管理。
  * 追加時は配列の末尾に足すだけ (既存の要素は変更しない)。
  */
-const MIGRATIONS: string[] = [
+export const MIGRATIONS: string[] = [
   // v1: Phase 1
   `
   CREATE TABLE settings (
@@ -109,6 +109,78 @@ const MIGRATIONS: string[] = [
   INSERT INTO settings (key, value) VALUES
     ('payday_day','25'), ('payday_holidays','1'),
     ('fixed_buffer_rate','0.1'), ('avg_rate','1.05'), ('extra_min','5000');
+  `,
+  // v2: Phase 2 (残高・移動・プール・取り込み準備)
+  `
+  -- Excel 等からの取り込み単位。batch_id の付いた行は単位ごとに削除・やり直しできる
+  CREATE TABLE import_batches (
+    id          INTEGER PRIMARY KEY,
+    source      TEXT NOT NULL,
+    imported_at TEXT NOT NULL,
+    note        TEXT
+  );
+
+  -- ウォレット間の移動 (出金・入金・チャージ)
+  CREATE TABLE transfers (
+    id             INTEGER PRIMARY KEY,
+    date           TEXT NOT NULL,
+    from_wallet_id INTEGER NOT NULL REFERENCES wallets(id),
+    to_wallet_id   INTEGER NOT NULL REFERENCES wallets(id),
+    amount         INTEGER NOT NULL,
+    memo           TEXT,
+    batch_id       INTEGER REFERENCES import_batches(id)
+  );
+  CREATE INDEX idx_transfers_date ON transfers(date);
+
+  ALTER TABLE transactions ADD COLUMN batch_id INTEGER REFERENCES import_batches(id);
+  -- 移動に付随する手数料の取引 (移動を消すと一緒に消す)
+  ALTER TABLE transactions ADD COLUMN transfer_id INTEGER REFERENCES transfers(id);
+  ALTER TABLE periods ADD COLUMN batch_id INTEGER REFERENCES import_batches(id);
+  ALTER TABLE period_fixed_costs ADD COLUMN batch_id INTEGER REFERENCES import_batches(id);
+
+  -- 期間ごとのウォレット残高: 期首 (給料前) と実残高 (不明金チェック用)
+  CREATE TABLE period_balances (
+    ym        TEXT NOT NULL,
+    wallet_id INTEGER NOT NULL REFERENCES wallets(id),
+    opening   INTEGER NOT NULL DEFAULT 0,
+    actual    INTEGER,
+    batch_id  INTEGER REFERENCES import_batches(id),
+    PRIMARY KEY (ym, wallet_id)
+  );
+
+  -- 貯金・娯楽費プール。毎期間の移動額は periods.saving_move / fun_move
+  CREATE TABLE pools (
+    id   INTEGER PRIMARY KEY,
+    code TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    sort INTEGER NOT NULL DEFAULT 0
+  );
+  -- kind: adjust = 残高の調整 (初期残高など) / use = プールからの使用 (口座に戻り自由枠に加算)
+  CREATE TABLE pool_entries (
+    id       INTEGER PRIMARY KEY,
+    pool_id  INTEGER NOT NULL REFERENCES pools(id),
+    date     TEXT NOT NULL,
+    kind     TEXT NOT NULL CHECK (kind IN ('adjust','use')),
+    amount   INTEGER NOT NULL,
+    purpose  TEXT,
+    memo     TEXT,
+    batch_id INTEGER REFERENCES import_batches(id)
+  );
+
+  -- 取引明細が無く集計値だけ残っている月の実績 (Excel「費用実績」の取り込み先)
+  -- item 例: 'fixed:家賃', 'cat:food', 'income:salary', 'move:saving'
+  CREATE TABLE monthly_actuals (
+    ym       TEXT NOT NULL,
+    item     TEXT NOT NULL,
+    amount   INTEGER NOT NULL,
+    batch_id INTEGER REFERENCES import_batches(id),
+    PRIMARY KEY (ym, item)
+  );
+
+  INSERT INTO pools (code, name, sort) VALUES ('saving','貯金',1), ('fun','娯楽費',2);
+  INSERT INTO purposes (name, wallet_id, category_code, is_charge, sort)
+    SELECT '手数料', NULL, 'other', 0, COALESCE(MAX(sort),0)+1 FROM purposes WHERE NOT EXISTS (SELECT 1 FROM purposes WHERE name = '手数料');
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('carry_opening','0');
   `,
 ];
 

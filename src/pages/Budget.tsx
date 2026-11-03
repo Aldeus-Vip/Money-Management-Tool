@@ -12,7 +12,7 @@ type NumKey = Exclude<keyof PeriodInput, 'start_date' | 'memo' | 'bonus_on'>;
 
 export function Budget() {
   const { mutate, toast, ym } = useApp();
-  const { range, period, txs, fixed, fixedTotal, rec, settings } = usePeriodData();
+  const { range, period, txs, fixed, fixedTotal, rec, settings, poolUse, carry, openingTotal } = usePeriodData();
   const prev = useQuery((db) => repo.getPeriod(db, shiftYM(ym, -1)), [ym]);
   const masters = useQuery((db) => repo.listFixedCosts(db, true));
 
@@ -47,7 +47,7 @@ export function Budget() {
   };
 
   // 未保存の入力値でプレビュー
-  const preview = summarize({ ym, memo: null, ...form }, txs, period ? fixedTotal : masters.reduce((s, f) => s + f.default_amount, 0));
+  const preview = summarize({ ym, memo: null, ...form }, txs, period ? fixedTotal : masters.reduce((s, f) => s + f.default_amount, 0), { poolUse, carry });
   const notInPeriod = masters.filter((m) => !fixed.some((f) => f.fixed_cost_id === m.id));
 
   return (
@@ -139,6 +139,8 @@ export function Budget() {
               <Row label="− 食費予算" v={-form.food_budget} />
               <Row label="自由枠" v={preview.freeFrame} total />
               <Row label="+ 受取金" v={preview.received} />
+              {preview.poolUse !== 0 && <Row label="+ プールからの使用" v={preview.poolUse} />}
+              {settings.carryOpening && <Row label="+ 期首残高 (繰越)" v={preview.carry} />}
               {form.extra_add !== 0 && <Row label="+ その他加算" v={form.extra_add} />}
               <Row label="自由枠 合計" v={preview.freeTotal} total />
               <Row label="− 課金・娯楽費 上限" v={-(form.charge_limit + form.fun_limit)} />
@@ -152,6 +154,9 @@ export function Budget() {
               </p>
             )}
             {!period && <p className="note">固定費はマスタの既定額で仮計算しています。</p>}
+            {!settings.carryOpening && openingTotal !== 0 && (
+              <p className="note">参考: 期首残高の合計 {yen(openingTotal)} (Excel ではこれを自由枠に加算。設定で切替可・繰越ルールは相談中)</p>
+            )}
           </section>
 
           {period && (

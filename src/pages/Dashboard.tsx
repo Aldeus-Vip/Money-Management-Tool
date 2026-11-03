@@ -8,12 +8,14 @@ import { fmtMD, todayISO } from '../lib/date';
 import { elapsedDays, yen } from '../lib/period';
 import { useQuery } from '../state/AppContext';
 import { usePeriodData } from '../state/usePeriodData';
-import { listWallets } from '../db/repo';
+import * as repo from '../db/repo';
+import { useApp } from '../state/AppContext';
 import { go } from '../state/router';
 
 export function Dashboard() {
-  const { range, period, txs, fixed, summary: s } = usePeriodData();
-  const wallets = useQuery((db) => listWallets(db));
+  const { ym, mutate } = useApp();
+  const { range, period, txs, fixed, summary: s, balances, pools } = usePeriodData();
+  const wallets = useQuery((db) => repo.listWallets(db));
   const today = todayISO();
   const elapsed = elapsedDays(range, today);
   const pace = elapsed / range.days;
@@ -45,6 +47,12 @@ export function Dashboard() {
       else if (b.paced && isCurrent && r > pace) alerts.push({ tone: 'warn', text: `${b.label}が理想ペースを ${yen(b.used - b.limit * pace)} 上回っています` });
     }
   }
+
+  for (const b of balances) {
+    if (b.unknown) alerts.push({ tone: 'danger', text: `${b.wallet.name}に不明金 ${yen(b.unknown)} があります` });
+  }
+  const overdue = fixed.filter((f) => !f.paid && (withdrawDate(range, f.withdraw_day) ?? '9') < today);
+  if (overdue.length) alerts.push({ tone: 'warn', text: `引落日を過ぎた未チェックの固定費: ${overdue.map((f) => f.name).join('、')}` });
 
   const upcoming = fixed
     .map((f) => ({ ...f, date: withdrawDate(range, f.withdraw_day) }))
@@ -126,7 +134,8 @@ export function Dashboard() {
         ) : (
           <ol>
             {upcoming.map((f) => (
-              <li key={f.fixed_cost_id} className={f.date && f.date < today ? 'past' : ''}>
+              <li key={f.fixed_cost_id} className={`${f.paid ? 'past' : ''} ${!f.paid && f.date && f.date < today ? 'overdue' : ''}`}>
+                <input type="checkbox" checked={!!f.paid} aria-label={`${f.name} 引落済`} onChange={(e) => mutate((db) => repo.setFixedPaid(db, ym, f.fixed_cost_id, e.target.checked))} />
                 <time>{f.date ? fmtMD(f.date) : '—'}</time>
                 <span>{f.name}</span>
                 <strong>{yen(f.amount)}</strong>
@@ -137,17 +146,31 @@ export function Dashboard() {
       </section>
 
       <section className="panel wallets">
-        <h2>ウォレット別 支出</h2>
+        <h2>残高</h2>
         <ul>
-          {spendByWallet.map((w) => (
-            <li key={w.id}>
-              <span className="w-name">{w.name}</span>
-              <span className="w-amt">{yen(w.total)}</span>
-              <span className="w-note">{w.count} 件</span>
+          {balances.map((b) => {
+            const spend = spendByWallet.find((w) => w.id === b.wallet.id);
+            return (
+              <li key={b.wallet.id} onClick={() => go('wallets')}>
+                <span className="w-name">{b.wallet.name}</span>
+                <span className="w-amt">{b.merged ? `−${yen(spend?.total ?? 0)}` : yen(b.current)}</span>
+                {b.merged && <span className="w-note">今期の支出 {spend?.count ?? 0} 件 (口座から引落)</span>}
+                {!b.merged && b.fixedUnpaid > 0 && <span className="w-note">固定費引落後の見込み {yen(b.projected)}</span>}
+                {b.unknown ? <span className="w-diff">実残高 {yen(b.actual ?? 0)} / 不明金 {yen(b.unknown)}</span> : null}
+              </li>
+            );
+          })}
+        </ul>
+        <h2 className="sub">プール</h2>
+        <ul>
+          {pools.map((p) => (
+            <li key={p.id} onClick={() => go('pools')}>
+              <span className="w-name">{p.name}</span>
+              <span className="w-amt">{yen(p.balance)}</span>
+              <span className="w-note">今期 +{yen(p.moved)}{p.used ? ` / 使用 −${yen(p.used)}` : ''}</span>
             </li>
           ))}
         </ul>
-        <p className="note">残高・不明金チェックは Phase 2 で追加予定</p>
       </section>
 
       <section className="panel recent">

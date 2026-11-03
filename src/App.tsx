@@ -7,7 +7,10 @@ import { Connect } from './pages/Connect';
 import { Dashboard } from './pages/Dashboard';
 import { Entry } from './pages/Entry';
 import { Master } from './pages/Master';
-import { Phase2 } from './pages/Phase2';
+import { Analysis } from './pages/Analysis';
+import { Fixed } from './pages/Fixed';
+import { Pools } from './pages/Pools';
+import { Wallets } from './pages/Wallets';
 import { Pin } from './pages/Pin';
 import { Settings } from './pages/Settings';
 import { Transactions } from './pages/Transactions';
@@ -28,7 +31,10 @@ function Screen() {
         case 'budget': return <Budget />;
         case 'master': return <Master />;
         case 'settings': return <Settings />;
-        case 'wallets': case 'fixed': case 'pools': case 'analysis': return <Phase2 route={route} />;
+        case 'wallets': return <Wallets />;
+        case 'fixed': return <Fixed />;
+        case 'pools': return <Pools />;
+        case 'analysis': return <Analysis />;
         default: return <Dashboard />;
       }
     })();
