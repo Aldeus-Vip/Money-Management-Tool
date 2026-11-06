@@ -541,7 +541,7 @@ strong.warn { color: var(--c-amber); }
 .helper-row input { width: 90px; }
 .helper-row strong { font-family: var(--font-tech); }
 
-.ledger { position: sticky; top: 76px; }
+.ledger { position: static; }
 .ledger-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .ledger-sum { display: flex; gap: 14px; font-size: 12px; color: var(--c-silver-dim); flex-wrap: wrap; }
 .ledger-sum strong { font-family: var(--font-tech); color: var(--c-text); font-weight: 500; font-size: 14px; }
@@ -650,23 +650,23 @@ strong.warn { color: var(--c-amber); }
 /* ===== 入力・照合: PC では画面の高さに収め、明細だけを中でスクロール =====
    上部の残高カードが常に見えるよう、ページ全体はスクロールさせない。
    幅・高さが足りない画面 (スマホ等) では従来どおりページ全体をスクロール。 */
-@media (min-width: 1001px) and (min-height: 620px) {
-  .shell:has(.page.recon) .main { height: 100vh; height: 100dvh; overflow: hidden; }
-  .shell:has(.page.recon) .content { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-bottom: 20px; }
-  .page.recon { flex: 1; min-height: 0; width: 100%; }
-  .page.recon .recon-grid { flex: 1; min-height: 0; align-items: stretch; }
-  .page.recon .recon-grid > .panel:first-child { min-height: 0; overflow-y: auto; }
-  .page.recon .ledger { position: static; min-height: 0; display: flex; flex-direction: column; }
-  .page.recon .ledger-list { flex: 1; min-height: 0; max-height: none; }
-  .page.recon .ledger > .note { display: none; } /* 説明は見出しのツールチップへ (明細の高さを確保) */
-  .page.recon { gap: 12px; }
-  .page.recon .page-head h1 { font-size: 18px; }
+@media (min-width: 1001px) {
+  .shell:has(.page.recon.fit) .main { height: 100vh; height: 100dvh; overflow: hidden; }
+  .shell:has(.page.recon.fit) .content { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-bottom: 20px; }
+  .page.recon.fit { flex: 1; min-height: 0; width: 100%; }
+  .page.recon.fit .recon-grid { flex: 1; min-height: 0; align-items: stretch; }
+  .page.recon.fit .recon-grid > .panel:first-child { min-height: 0; overflow-y: auto; }
+  .page.recon.fit .ledger { position: static; min-height: 0; display: flex; flex-direction: column; }
+  .page.recon.fit .ledger-list { flex: 1; min-height: 0; max-height: none; }
+  .page.recon.fit .ledger > .note { display: none; } /* 説明は見出しのツールチップへ (明細の高さを確保) */
+  .page.recon.fit { gap: 12px; }
+  .page.recon.fit .page-head h1 { font-size: 18px; }
   /* 残高カードを横長に詰める: 現在 (計算) と 実際の金額 を左右に並べる */
-  .page.recon .recon-card { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; padding: 10px 14px; align-items: end; }
-  .page.recon .rc-head { grid-column: 1 / -1; }
-  .page.recon .rc-now span { font-size: 19px; }
-  .page.recon .rc-now small, .page.recon .rc-actual small { margin-bottom: 2px; }
-  .page.recon .ledger-table td { padding-top: 5px; padding-bottom: 5px; }
+  .page.recon.fit .recon-card { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; padding: 10px 14px; align-items: end; }
+  .page.recon.fit .rc-head { grid-column: 1 / -1; }
+  .page.recon.fit .rc-now span { font-size: 19px; }
+  .page.recon.fit .rc-now small, .page.recon.fit .rc-actual small { margin-bottom: 2px; }
+  .page.recon.fit .ledger-table td { padding-top: 5px; padding-bottom: 5px; }
 }
 
 /* ===== 予算の状況 (右パネル / ヘッダ下の帯) ===== */
@@ -758,9 +758,15 @@ strong.warn { color: var(--c-amber); }
 .next-rem.strip strong { font-size: 12.5px; }
 .topbar-strip { gap: 8px; }
 @media (max-width: 1479px) {
-  .shell.with-pane .topbar-strip { display: flex; flex-direction: column; }
-  .shell.with-pane .topbar-strip .next-rem { align-self: flex-start; margin-top: 8px; }
-  .shell.with-pane .topbar-strip .budget-pane.strip { padding-top: 6px; }
+  /* 次の予定は予算の帯と同じ行の先頭 (帯を 1 段に保ち、本体の高さを確保) */
+  .shell.with-pane .topbar-strip { display: flex; align-items: stretch; gap: 8px; padding-top: 8px; }
+  .shell.with-pane .topbar-strip .budget-pane.strip { flex: 1; min-width: 0; padding-top: 0; }
+  .shell.with-pane .topbar-strip .next-rem.strip { flex-direction: column; justify-content: center; gap: 0; flex: none; max-width: 190px; overflow: hidden; }
+  .shell.with-pane .topbar-strip .next-rem.strip strong { overflow: hidden; text-overflow: ellipsis; }
+}
+@media (max-width: 760px) {
+  .shell.with-pane .topbar-strip { flex-direction: column; }
+  .shell.with-pane .topbar-strip .next-rem.strip { flex-direction: row; max-width: none; align-self: flex-start; }
 }
 .dash-rem { grid-column: span 12; }
 .dash-rem:empty { display: none; }

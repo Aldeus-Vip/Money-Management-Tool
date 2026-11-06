@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CommitAmount } from '../components/CommitAmount';
 import { TransferForm } from '../components/TransferForm';
 import { AmountInput, Field, PageHead, Segmented } from '../components/ui';
@@ -28,8 +28,28 @@ function lastWallet(): number | null {
  * 入力・照合: 実際の残高と照合しながら 1 件ずつ入力する画面。
  * 上 = 各ウォレットの「現在 (計算)」「実際 (入力)」「差」/ 左 = 入力 / 右 = 通帳形式の明細 (行ごとの残高)
  */
+/**
+ * 画面に収める表示 (ページは動かさず明細だけスクロール) にするか。
+ * ヘッダ (予算の帯を含む) を除いた高さが足りない画面では、ページ全体をスクロールさせる
+ * (足りないのに収めると、明細が潰れて操作できなくなるため)。
+ */
+function useFitLayout(): boolean {
+  const [fit, setFit] = useState(false);
+  useLayoutEffect(() => {
+    const calc = () => {
+      const top = document.querySelector('.topbar')?.getBoundingClientRect().height ?? 64;
+      setFit(window.innerWidth >= 1001 && window.innerHeight - top >= 560);
+    };
+    calc();
+    window.addEventListener('resize', calc);
+    return () => window.removeEventListener('resize', calc);
+  }, []);
+  return fit;
+}
+
 export function Entry({ id }: { id?: number }) {
   const { ym, mutate } = useApp();
+  const fit = useFitLayout();
   const data = usePeriodData();
   const wallets = useQuery((db) => repo.listWallets(db));
   const editing = useQuery((db) => (id ? repo.getTransaction(db, id) : undefined), [id]);
@@ -57,7 +77,7 @@ export function Entry({ id }: { id?: number }) {
   };
 
   return (
-    <div className="page recon">
+    <div className={`page recon ${fit ? 'fit' : ''}`}>
       <PageHead title={`入力・照合 — ${fmtYM(ym)}`}>
         <span className="muted">実際の金額を入れて、差が 0 になるまで入力</span>
       </PageHead>
