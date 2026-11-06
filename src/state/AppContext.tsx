@@ -26,6 +26,8 @@ interface Ctx {
   /** DB を書き換える処理はすべてこれを通す (自動保存される) */
   mutate: <T>(fn: (db: Database) => T) => T;
   saveNow: (force?: boolean) => Promise<void>;
+  /** 外部で更新されていれば読み直す (manual = 結果をトーストで通知) */
+  refresh: (manual?: boolean) => Promise<boolean>;
   setPin: (pin: string) => Promise<void>;
   unlock: (pin: string) => Promise<boolean>;
   lock: () => void;
@@ -83,6 +85,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // 新規作成 / マイグレーション結果を即保存
     await saveNow(true);
   }, [saveNow]);
+
+  /**
+   * 外部で更新されたファイルの読み直し (別の端末・OneDrive 同期の変更を反映)。
+   * 未保存の変更があるときは上書きを防ぐため読み直さない (保存時に「外部で変更あり」として扱う)。
+   */
+  const saveStateRef = useRef<SaveState>('saved');
+  saveStateRef.current = saveState;
+  const refreshing = useRef(false);
+  const refresh = useCallback(async (manual = false): Promise<boolean> => {
+    const s = storageRef.current;
+    if (!s?.changedExternally || refreshing.current) return false;
+    if (saveStateRef.current !== 'saved') return false;
+    refreshing.current = true;
+    try {
+      if (!(await s.changedExternally())) {
+        if (manual) toast('最新の状態です');
+        return false;
+      }
+      const d = await openDb(await s.load(), wasmUrl);
+      if (saveStateRef.current !== 'saved') return false; // 読み込み中に入力された場合は破棄
+      dbRef.current?.close();
+      dbRef.current = d;
+      setDb(d);
+      setRev((v) => v + 1);
+      toast('別の端末の変更を読み込みました');
+      return true;
+    } catch (e) {
+      console.error(e);
+      return false;
+    } finally {
+      refreshing.current = false;
+    }
+  }, [toast]);
+
+  // アプリに戻ったとき / 開いている間 30 秒ごとに確認
+  useEffect(() => {
+    if (phase !== 'ready' && phase !== 'locked') return;
+    const onVisible = () => document.visibilityState === 'visible' && void refresh();
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    const t = window.setInterval(onVisible, 30_000);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+      window.clearInterval(t);
+    };
+  }, [phase, refresh]);
 
   const disconnect = useCallback(() => {
     dbRef.current?.close();
@@ -150,9 +199,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<Ctx>(
     () => ({
-      phase, db: db as Database, storage, rev, saveState, ym, setYm, connect, disconnect, mutate, saveNow, setPin, unlock, lock, toast, toasts,
+      phase, db: db as Database, storage, rev, saveState, ym, setYm, connect, disconnect, mutate, saveNow, refresh, setPin, unlock, lock, toast, toasts,
     }),
-    [phase, db, storage, rev, saveState, ym, connect, disconnect, mutate, saveNow, setPin, unlock, lock, toast, toasts],
+    [phase, db, storage, rev, saveState, ym, connect, disconnect, mutate, saveNow, refresh, setPin, unlock, lock, toast, toasts],
   );
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
 }

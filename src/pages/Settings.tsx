@@ -42,7 +42,7 @@ function Imports() {
 }
 
 export function Settings() {
-  const { db, storage, saveState, saveNow, connect, disconnect, mutate, toast, ym } = useApp();
+  const { db, storage, saveState, saveNow, connect, disconnect, mutate, toast, ym, refresh } = useApp();
   const s = useQuery((d) => repo.getSettings(d));
   const counts = useQuery((d) => ({
     tx: Number(d.exec('SELECT COUNT(*) FROM transactions')[0].values[0][0]),
@@ -80,7 +80,13 @@ export function Settings() {
           </div>
         )}
         {saveState === 'error' && <button className="btn" onClick={() => void saveNow()}>保存を再試行</button>}
+        <p className="note">
+          {storage?.kind === 'file'
+            ? '別の端末 (OneDrive 同期) での変更は、アプリに戻ったときと 30 秒ごとに確認し、自動で読み込みます (未保存の入力があるときは読み込みません)。'
+            : 'ブラウザ内保存は、この端末のブラウザの中だけのデータです。OneDrive や他の端末とは同期されません。'}
+        </p>
         <div className="btn-row">
+          {storage?.kind === 'file' && <button className="btn" onClick={() => void refresh(true)}>最新のデータを確認</button>}
           <button className="btn" onClick={() => downloadBytes(db.export(), `money-backup-${todayISO()}.sqlite`)}>バックアップをダウンロード</button>
           {storage?.kind === 'browser' && fileApiSupported() && <button className="btn" onClick={() => void moveToFile()}>ファイル保存に移行</button>}
           <button className="btn ghost" onClick={disconnect}>別のデータを開く</button>

@@ -11,6 +11,8 @@ export interface Storage {
   load(): Promise<Uint8Array | null>;
   /** 外部で変更されていたら 'conflict' を返す (force で上書き) */
   save(bytes: Uint8Array, force?: boolean): Promise<'ok' | 'conflict'>;
+  /** 読み込み後に外部 (別の端末・OneDrive 同期) でファイルが更新されたか */
+  changedExternally?(): Promise<boolean>;
 }
 
 export const fileApiSupported = () => typeof window !== 'undefined' && !!window.showOpenFilePicker;
@@ -30,6 +32,10 @@ class FileStorage implements Storage {
     const f = await this.handle.getFile();
     this.lastModified = f.lastModified;
     return f.size ? new Uint8Array(await f.arrayBuffer()) : null;
+  }
+  async changedExternally() {
+    if (!this.lastModified) return false;
+    return (await this.handle.getFile()).lastModified !== this.lastModified;
   }
   async save(bytes: Uint8Array, force = false) {
     const cur = await this.handle.getFile();
