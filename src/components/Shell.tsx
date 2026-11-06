@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Emblem } from './Emblem';
 import { Icon } from './Icon';
 import { BudgetPane } from './BudgetPane';
+import { NextReminder } from './Reminders';
 import { useApp, type SaveState } from '../state/AppContext';
 import { go, type Route } from '../state/router';
 import { fmtMD, parseYM, shiftYM } from '../lib/date';
@@ -78,13 +79,19 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
             </button>
             <button className="icon-btn" aria-label="ロック" title="ロック" onClick={lock}><Icon name="lock" size={18} /></button>
           </div>
-          {route !== 'dashboard' && <div className="topbar-strip"><BudgetPane variant="strip" /></div>}
+          {route !== 'dashboard' && (
+            <div className="topbar-strip">
+              <NextReminder variant="strip" />
+              <BudgetPane variant="strip" />
+            </div>
+          )}
         </header>
         <main className="content">{children}</main>
       </div>
 
       {route !== 'dashboard' && (
         <aside className="side-pane">
+          <NextReminder variant="pane" />
           <h2>予算の状況</h2>
           <BudgetPane variant="pane" />
         </aside>

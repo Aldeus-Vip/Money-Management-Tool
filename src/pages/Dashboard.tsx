@@ -2,6 +2,7 @@ import { BudgetCard } from '../components/BudgetCard';
 import { DailyChart } from '../components/DailyChart';
 import { RingGauge } from '../components/RingGauge';
 import { FixedNotices } from '../components/FixedNotices';
+import { NextReminder, ReminderPanel } from '../components/Reminders';
 import { shiftYM } from '../lib/date';
 import { Empty } from '../components/ui';
 import { budgetItems, dailyByCategory, withdrawDate } from '../lib/budget';
@@ -55,6 +56,7 @@ export function Dashboard() {
 
   return (
     <div className="dash">
+      <div className="dash-rem"><NextReminder variant="strip" /></div>
       {!period && (
         <section className="panel notice">
           <p>この期間の<strong>給料が未登録</strong>です。月次予算で登録すると、予算と自由枠が計算されます。</p>
@@ -169,6 +171,8 @@ export function Dashboard() {
           ))}
         </ul>
       </section>
+
+      <ReminderPanel />
 
       <section className="panel recent">
         <h2>最近の取引</h2>

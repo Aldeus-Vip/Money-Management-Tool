@@ -206,6 +206,17 @@ export const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_fixed_cost_rules ON fixed_cost_rules(fixed_cost_id);
   `,
+  // v5: 予定 (通院日など)。中身は DB にだけ保存され、アプリのコードには含まれない
+  `
+  CREATE TABLE reminders (
+    id    INTEGER PRIMARY KEY,
+    title TEXT NOT NULL,
+    date  TEXT NOT NULL,
+    time  TEXT,          -- 'HH:MM' (任意)
+    memo  TEXT
+  );
+  CREATE INDEX idx_reminders_date ON reminders(date);
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

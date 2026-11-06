@@ -594,3 +594,21 @@ export function mergeFixedCost(db: Database, fromId: number, toId: number): void
 
 const listAllPeriodRows = (db: Database, id: number) =>
   all<{ ym: YM }>(db, 'SELECT ym FROM period_fixed_costs WHERE fixed_cost_id = ? ORDER BY ym', [id]);
+
+// ===== 予定 (通院日など) =====
+export interface Reminder { id: number; title: string; date: ISODate; time: string | null; memo: string | null }
+
+/** 指定日以降の予定 (日付・時刻順) */
+export const listReminders = (db: Database, fromDate?: ISODate) =>
+  all<Reminder>(db, `SELECT * FROM reminders ${fromDate ? 'WHERE date >= ?' : ''} ORDER BY date, COALESCE(time, ''), id`, fromDate ? [fromDate] : []);
+
+export function saveReminder(db: Database, r: Omit<Reminder, 'id'> & { id?: number }): number {
+  if (r.id) {
+    run(db, 'UPDATE reminders SET title=?, date=?, time=?, memo=? WHERE id=?', [r.title, r.date, r.time, r.memo, r.id]);
+    return r.id;
+  }
+  run(db, 'INSERT INTO reminders (title, date, time, memo) VALUES (?,?,?,?)', [r.title, r.date, r.time, r.memo]);
+  return lastId(db);
+}
+
+export const deleteReminder = (db: Database, id: number) => run(db, 'DELETE FROM reminders WHERE id = ?', [id]);
