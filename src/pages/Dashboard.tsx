@@ -11,6 +11,8 @@ import { elapsedDays, yen } from '../lib/period';
 import { useApp } from '../state/AppContext';
 import { go } from '../state/router';
 import { usePeriodData } from '../state/usePeriodData';
+import { VIcon } from '../components/VIcon';
+import { accent, poolVisual, VISUAL, walletVisual } from '../lib/visuals';
 
 /**
  * ダッシュボード (Excel の銀行口座シート上部の配置に合わせる)
@@ -30,9 +32,7 @@ export function Dashboard() {
   const others = balances.filter((b) => !b.merged && b.wallet.kind !== 'bank');
   const poolTotal = pools.reduce((a, p) => a + p.balance, 0);
 
-  // Excel の並び: 食費 / 課金 / 娯楽費その他 / 臨時費用
-  const order = ['food', 'charge', 'fun', 'extra'];
-  const budgets = s && period ? budgetItems(period, s).sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key)) : [];
+  const budgets = s && period ? budgetItems(period, s) : [];
 
   const alerts: { tone: 'warn' | 'danger'; text: string }[] = [];
   if (s) {
@@ -67,25 +67,25 @@ export function Dashboard() {
 
       {/* 1 段目 */}
       <section className="dash-top">
-        <button type="button" className="panel top-card bank" onClick={() => go('wallets')}>
-          <span className="tc-label">{bank?.wallet.name ?? '口座'}</span>
+        <button type="button" className="panel top-card bank accented" style={accent(VISUAL.bank)} onClick={() => go('wallets')}>
+          <span className="tc-label"><VIcon v={VISUAL.bank} />{bank?.wallet.name ?? '口座'}</span>
           <strong className="tc-value">{yen(bank?.current ?? 0)}</strong>
           {bank && bank.fixedUnpaid > 0 && <span className="tc-sub">固定費引落後 {yen(bank.projected)}</span>}
           <span className="tc-wallets">
             {others.map((b) => (
-              <span key={b.wallet.id} className={b.unknown ? 'ng' : ''}>{b.wallet.name} {yen(b.current)}</span>
+              <span key={b.wallet.id} className={`tc-w ${b.unknown ? 'ng' : ''}`} style={accent(walletVisual(b.wallet))}><i />{b.wallet.name} {yen(b.current)}</span>
             ))}
           </span>
         </button>
-        <button type="button" className="panel top-card pool" onClick={() => go('pools')}>
-          <span className="tc-label">貯蓄</span>
+        <button type="button" className="panel top-card pool accented" style={accent(VISUAL.savings)} onClick={() => go('pools')}>
+          <span className="tc-label"><VIcon v={VISUAL.savings} />貯蓄</span>
           <strong className="tc-value">{yen(poolTotal)}</strong>
           <span className="tc-wallets">
-            {pools.map((p) => <span key={p.id}>{p.name} {yen(p.balance)}{p.moved ? ` (今期 +${yen(p.moved)})` : ''}</span>)}
+            {pools.map((p) => <span key={p.id} className="tc-w" style={accent(poolVisual(p.code))}><i />{p.name} {yen(p.balance)}{p.moved ? ` (今期 +${yen(p.moved)})` : ''}</span>)}
           </span>
         </button>
-        <div className={`panel top-card free ${s && s.freeRemain < 0 ? 'neg' : ''}`}>
-          <span className="tc-label">自由枠 残り</span>
+        <div className={`panel top-card free accented ${s && s.freeRemain < 0 ? 'neg' : ''}`} style={accent(VISUAL.free)}>
+          <span className="tc-label"><VIcon v={VISUAL.free} />自由枠 残り</span>
           <strong className="tc-value">{s ? yen(s.freeRemain) : '—'}</strong>
           {s && <span className="tc-sub">/ {yen(s.freeTotal)}</span>}
           <span className="tc-days">
@@ -102,7 +102,7 @@ export function Dashboard() {
       {budgets.length > 0 && (
         <section className="budgets" aria-label="予算枠">
           {budgets.map((b) => (
-            <BudgetCard key={b.key} label={b.label} used={b.used} limit={b.limit} pace={b.paced && isCurrent ? pace : undefined} />
+            <BudgetCard key={b.key} vkey={b.key} label={b.label} used={b.used} limit={b.limit} pace={b.paced && isCurrent ? pace : undefined} />
           ))}
         </section>
       )}

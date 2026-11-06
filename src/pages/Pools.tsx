@@ -6,6 +6,8 @@ import { fmtMD, fmtYM, todayISO } from '../lib/date';
 import { yen } from '../lib/period';
 import { useApp, useQuery } from '../state/AppContext';
 import { usePeriodData } from '../state/usePeriodData';
+import { VIcon } from '../components/VIcon';
+import { accent, poolVisual } from '../lib/visuals';
 
 const USE_PURPOSES = ['臨時費用補填', '課金', '娯楽', 'その他'];
 
@@ -48,8 +50,8 @@ export function Pools() {
 
       <section className="stat-row">
         {pools.map((p) => (
-          <div key={p.id} className="panel stat pool">
-            <span>{p.name}</span>
+          <div key={p.id} className="panel stat pool accented" style={accent(poolVisual(p.code))}>
+            <span><VIcon v={poolVisual(p.code)} />{p.name}</span>
             <strong>{yen(p.balance)}</strong>
             <small>今期 移動 +{yen(p.moved)} / 使用 −{yen(p.used)}</small>
           </div>

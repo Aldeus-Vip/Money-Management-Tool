@@ -3,6 +3,8 @@ import { todayISO } from '../lib/date';
 import { elapsedDays, yen } from '../lib/period';
 import { go } from '../state/router';
 import { usePeriodData } from '../state/usePeriodData';
+import { accent, VISUAL } from '../lib/visuals';
+import { VIcon } from './VIcon';
 
 /**
  * 予算枠の簡易表示 (食費・臨時費用・課金・娯楽費その他 + 自由枠)。
@@ -27,8 +29,8 @@ export function BudgetPane({ variant }: { variant: 'pane' | 'strip' }) {
 
   return (
     <div className={`budget-pane ${variant}`} aria-label="予算の状況">
-      <button type="button" className={`bp-free tone-${freeTone}`} onClick={() => go('dashboard')} title="ダッシュボードを開く">
-        <small>自由枠 残り</small>
+      <button type="button" className={`bp-free tone-${freeTone}`} style={accent(VISUAL.free)} onClick={() => go('dashboard')} title="ダッシュボードを開く">
+        <small><VIcon v={VISUAL.free} size={13} />自由枠 残り</small>
         <strong>{yen(s.freeRemain)}</strong>
         {variant === 'pane' && <span>/ {yen(s.freeTotal)}{pace !== undefined && ` · ${elapsedDays(range, today)}/${range.days}日目`}</span>}
       </button>
@@ -36,9 +38,9 @@ export function BudgetPane({ variant }: { variant: 'pane' | 'strip' }) {
         const t = budgetTone(b.used, b.limit, b.paced ? pace : undefined);
         const ratio = b.limit > 0 ? Math.min(1, b.used / b.limit) : b.used > 0 ? 1 : 0;
         return (
-          <div key={b.key} className={`bp-item tone-${t.tone}`} title={`${b.label}: ${yen(b.used)} / ${yen(b.limit)} (${t.text})`}>
+          <div key={b.key} className={`bp-item tone-${t.tone}`} style={accent(VISUAL[b.key])} title={`${b.label}: ${yen(b.used)} / ${yen(b.limit)} (${t.text})`}>
             <div className="bp-head">
-              <span>{b.label}</span>
+              <span><VIcon v={VISUAL[b.key]} size={13} />{b.label}</span>
               {variant === 'pane' && <em>{t.text}</em>}
             </div>
             <div className="bp-remain"><small>残り</small> {yen(b.limit - b.used)}</div>

@@ -162,11 +162,12 @@ export const isExpression = (input: string) => /\d\s*[+\-*/×÷＋－＊／xX]\s
 export interface BudgetItem { key: 'food' | 'extra' | 'charge' | 'fun'; label: string; used: number; limit: number; paced: boolean }
 
 export function budgetItems(p: Period, s: BudgetSummary): BudgetItem[] {
+  // 並びは Excel と同じ: 食費 / 課金 / 娯楽費その他 / 臨時費用
   return [
     { key: 'food', label: '食費', used: s.foodUsed, limit: p.food_budget, paced: true },
-    { key: 'extra', label: '臨時費用', used: s.extraUsed, limit: s.extraBudget, paced: true },
     { key: 'charge', label: '課金', used: s.chargeUsed, limit: p.charge_limit, paced: false },
     { key: 'fun', label: '娯楽費その他', used: s.funOtherUsed, limit: p.fun_limit, paced: false },
+    { key: 'extra', label: '臨時費用', used: s.extraUsed, limit: s.extraBudget, paced: true },
   ];
 }
 

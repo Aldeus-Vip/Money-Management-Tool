@@ -845,3 +845,33 @@ button.top-card:hover { border-color: rgba(25, 227, 232, 0.5); }
   .fixed-check.fc-edit li .src-amount { grid-column: 1 / -1; }
   .history-list { max-height: none; }
 }
+
+/* ===== 色とアイコン (src/lib/visuals.ts) ===== */
+.v-icon {
+  display: inline-grid; place-items: center; width: 24px; height: 24px; margin-right: 7px; border-radius: 7px; flex: none; vertical-align: -6px;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.bp-head .v-icon, .bp-free .v-icon { width: 20px; height: 20px; margin-right: 5px; vertical-align: -5px; border-radius: 6px; }
+.accented {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--panel-edge));
+  background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 13%, transparent) 0%, transparent 55%), var(--panel);
+  box-shadow: inset 3px 0 0 var(--accent), inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+.accented.panel::before { background: linear-gradient(90deg, transparent, var(--accent), transparent); }
+/* 予算枠: バーは区分の色 (注意・超過は警告色で上書き) */
+.budget.accented.tone-ok .bar-fill { background: var(--accent); box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 60%, transparent); }
+.budget.accented.tone-ok .chip { color: var(--accent); }
+.budget.accented h3 { display: flex; align-items: center; }
+.bp-item { border-left: 3px solid var(--accent, var(--panel-edge)); }
+.bp-item.tone-ok .bp-bar i { background: var(--accent, var(--c-cyan)); box-shadow: 0 0 8px color-mix(in srgb, var(--accent, #19e3e8) 55%, transparent); }
+.bp-item.tone-ok .bp-head em { color: var(--accent, var(--c-cyan)); }
+.bp-head span { display: inline-flex; align-items: center; }
+/* 小さな色の点 (ダッシュボードの内訳) */
+.tc-w i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+.tc-label { display: inline-flex; align-items: center; }
+/* 入力・照合のカード: 選択中・一致・差ありの表示を優先 */
+.recon-card.accented.selected { border-color: var(--c-cyan); box-shadow: inset 3px 0 0 var(--accent), 0 0 0 1px var(--c-cyan), 0 0 18px rgba(25, 227, 232, 0.25); }
+.recon-card.accented.match { background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 13%, transparent) 0%, transparent 55%), linear-gradient(180deg, rgba(61, 220, 151, 0.08), var(--panel)); }
+.recon-card.accented.diff { background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 13%, transparent) 0%, transparent 55%), linear-gradient(180deg, rgba(255, 77, 94, 0.08), var(--panel)); }
+.rc-head strong { display: inline-flex; align-items: center; }
+.stat.pool span { display: inline-flex; align-items: center; }

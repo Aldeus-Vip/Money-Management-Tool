@@ -4,6 +4,8 @@ import { TransferForm } from '../components/TransferForm';
 import { AmountInput, Field, PageHead, Segmented } from '../components/ui';
 import { DateInput } from '../components/DateInput';
 import { FixedChecklist } from '../components/FixedChecklist';
+import { VIcon } from '../components/VIcon';
+import { accent, walletVisual } from '../lib/visuals';
 import * as repo from '../db/repo';
 import type { CategoryCode } from '../db/repo';
 import { CATEGORY_COLOR, CATEGORY_LABEL } from '../lib/categories';
@@ -91,14 +93,15 @@ export function Entry({ id }: { id?: number }) {
           return (
             <div
               key={b.wallet.id}
-              className={`panel recon-card ${selected ? 'selected' : ''} ${b.unknown === null ? '' : match ? 'match' : 'diff'}`}
+              className={`panel recon-card accented ${selected ? 'selected' : ''} ${b.unknown === null ? '' : match ? 'match' : 'diff'}`}
+              style={accent(walletVisual(b.wallet))}
               onClick={() => setWalletId(b.wallet.id)}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => e.key === 'Enter' && setWalletId(b.wallet.id)}
             >
               <div className="rc-head">
-                <strong>{b.wallet.name}</strong>
+                <strong><VIcon v={walletVisual(b.wallet)} />{b.wallet.name}</strong>
                 {b.unknown === null ? <span className="rc-badge">実際 未入力</span> : match ? <span className="rc-badge ok">✓ 一致</span> : <span className="rc-badge ng">差 {b.unknown > 0 ? '+' : ''}{yen(b.unknown)}</span>}
               </div>
               <div className="rc-now">

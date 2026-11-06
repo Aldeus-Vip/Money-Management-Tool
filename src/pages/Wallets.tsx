@@ -9,6 +9,8 @@ import { useApp, useQuery } from '../state/AppContext';
 import { loadPeriod } from '../state/loadPeriod';
 import { go } from '../state/router';
 import { usePeriodData } from '../state/usePeriodData';
+import { VIcon } from '../components/VIcon';
+import { walletVisual } from '../lib/visuals';
 
 export function Wallets() {
   const { ym, mutate, toast } = useApp();
@@ -51,7 +53,7 @@ export function Wallets() {
             <tbody>
               {rows.map((b) => (
                 <tr key={b.wallet.id}>
-                  <td className="w-title">{b.wallet.name}</td>
+                  <td className="w-title"><VIcon v={walletVisual(b.wallet)} />{b.wallet.name}</td>
                   <td className="num col-now" data-label="現在の残高 (計算)">
                     {yen(b.current)}
                     {b.fixedUnpaid > 0 && <small>固定費引落後の見込み {yen(b.projected)}</small>}
