@@ -3,6 +3,7 @@ import { CommitAmount } from '../components/CommitAmount';
 import { TransferForm } from '../components/TransferForm';
 import { AmountInput, Field, PageHead, Segmented } from '../components/ui';
 import { DateInput } from '../components/DateInput';
+import { FixedChecklist } from '../components/FixedChecklist';
 import * as repo from '../db/repo';
 import type { CategoryCode } from '../db/repo';
 import { CATEGORY_COLOR, CATEGORY_LABEL } from '../lib/categories';
@@ -55,7 +56,8 @@ export function Entry({ id }: { id?: number }) {
   const editing = useQuery((db) => (id ? repo.getTransaction(db, id) : undefined), [id]);
 
   const [walletId, setWalletId] = useState<number>(() => lastWallet() ?? 0);
-  const [mode, setMode] = useState<'tx' | 'transfer'>('tx');
+  const [mode, setMode] = useState<'tx' | 'transfer' | 'fixed'>('tx');
+  const [fixedHl, setFixedHl] = useState<number | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [lastDelta, setLastDelta] = useState<{ walletId: number; delta: number } | null>(null);
 
@@ -116,9 +118,14 @@ export function Entry({ id }: { id?: number }) {
       <div className="recon-grid">
         <section className="panel">
           {!id && (
-            <Segmented value={mode} onChange={setMode} options={[{ value: 'tx', label: '支出・受取' }, { value: 'transfer', label: '移動 (出金・チャージ)' }]} />
+            <Segmented value={mode} onChange={setMode} options={[{ value: 'tx', label: '支出・受取' }, { value: 'transfer', label: '移動 (出金・チャージ)' }, { value: 'fixed', label: '固定費' }]} />
           )}
-          {mode === 'tx' || id ? (
+          {mode === 'fixed' && !id ? (
+            <>
+              <FixedChecklist mode="edit" highlight={fixedHl} />
+              <p className="note">✓ = 引落済 (口座の残高から引かれ、明細に入ります)。金額は引落額。予算額の変更は月次予算・固定費画面で行います。</p>
+            </>
+          ) : mode === 'tx' || id ? (
             <TxForm id={id} editing={editing} walletId={wid ?? 0} setWalletId={setWalletId} start={data.range.start} end={data.range.end}
               onSaved={(txId, w, delta) => onSaved(`tx-${txId}`, w, delta)} bankId={bank?.wallet.id} />
           ) : (
@@ -133,6 +140,7 @@ export function Entry({ id }: { id?: number }) {
           current={ledgerBal?.current ?? 0}
           actual={ledgerBal?.actual ?? null}
           editingId={id}
+          onFixed={(fid) => { setMode('fixed'); setFixedHl(fid); }}
         />
       </div>
     </div>
@@ -266,7 +274,7 @@ function TxForm({
   );
 }
 
-function LedgerPanel({ title, rows, flash, current, actual, editingId }: { title: string; rows: ReturnType<typeof buildLedger>; flash: string | null; current: number; actual: number | null; editingId?: number }) {
+function LedgerPanel({ title, rows, flash, current, actual, editingId, onFixed }: { title: string; rows: ReturnType<typeof buildLedger>; flash: string | null; current: number; actual: number | null; editingId?: number; onFixed: (fixedId: number) => void }) {
   const { mutate, toast } = useApp();
   const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -282,7 +290,7 @@ function LedgerPanel({ title, rows, flash, current, actual, editingId }: { title
   return (
     <section className="panel ledger">
       <div className="ledger-head">
-        <h2 title="行をタップすると編集。給料・固定費 (引落済)・プールの行は、月次予算・固定費・貯蓄の画面で変更します。">{title}</h2>
+        <h2 title="行をタップすると編集 (固定費の行は左の「固定費」が開きます)。給料・プールの行は、月次予算・貯蓄の画面で変更します。">{title}</h2>
         <div className="ledger-sum">
           <span>現在 (計算) <strong>{yen(current)}</strong></span>
           {actual !== null && <span>実際 <strong>{yen(actual)}</strong></span>}
@@ -299,8 +307,8 @@ function LedgerPanel({ title, rows, flash, current, actual, editingId }: { title
               <tr
                 key={r.key}
                 data-key={r.key}
-                className={`${r.kind} ${flash && (r.key === flash || r.key.startsWith(`${flash}-`)) ? 'flash' : ''} ${r.txId && r.txId === editingId ? 'editing' : ''} ${r.txId ? 'clickable' : ''}`}
-                onClick={() => r.txId && go('entry', r.txId)}
+                className={`${r.kind} ${flash && (r.key === flash || r.key.startsWith(`${flash}-`)) ? 'flash' : ''} ${r.txId && r.txId === editingId ? 'editing' : ''} ${r.txId || r.fixedId ? 'clickable' : ''}`}
+                onClick={() => (r.txId ? go('entry', r.txId) : r.fixedId ? onFixed(r.fixedId) : undefined)}
               >
                 <td className="d">{fmtMD(r.date)}</td>
                 <td className="c">
@@ -325,7 +333,7 @@ function LedgerPanel({ title, rows, flash, current, actual, editingId }: { title
           </tbody>
         </table>
       </div>
-      <p className="note">行をタップすると編集。給料・固定費 (引落済)・プールの行は、月次予算・固定費・貯蓄の画面で変更します。</p>
+      <p className="note">行をタップすると編集 (固定費の行は左の「固定費」が開きます)。給料・プールの行は、月次予算・貯蓄の画面で変更します。</p>
     </section>
   );
 }

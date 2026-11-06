@@ -17,6 +17,7 @@ export interface LedgerRow {
   balance: number;
   txId?: number;
   transferId?: number;
+  fixedId?: number;
   category?: string;
 }
 
@@ -42,7 +43,7 @@ export function buildLedger(d: PeriodData, walletId: number): LedgerRow[] {
   if (isBank) {
     for (const e of d.poolUses) rows.push({ key: `pu-${e.id}`, date: e.date, kind: 'pool', label: `${e.pool_name}から使用`, sub: e.purpose ?? undefined, amount: e.amount });
     for (const f of d.fixed.filter((x) => x.paid)) {
-      rows.push({ key: `fx-${f.fixed_cost_id}`, date: withdrawDate(d.range, f.withdraw_day) ?? start, kind: 'fixed', label: f.name, sub: '固定費', amount: -f.actual });
+      rows.push({ key: `fx-${f.fixed_cost_id}`, date: withdrawDate(d.range, f.withdraw_day) ?? start, kind: 'fixed', label: f.name, sub: '固定費', amount: -f.actual, fixedId: f.fixed_cost_id });
     }
   }
   for (const t of d.transfers) {
